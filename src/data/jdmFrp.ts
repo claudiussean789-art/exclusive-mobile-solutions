@@ -28,3 +28,6 @@ export const jdmFrpId = (model: string) => `jdm-frp-${model.toLowerCase().replac
 export const jdmFrpName = (model: string) => `Samsung JDM FRP — ${model}`;
 export const samsungUltraFrpId = (model: string) => `samsung-ultra-frp-${model.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
 export const samsungUltraFrpName = (model: string) => `Samsung FRP — ${model}`;
+export const samsungUsaAndroid16FrpId = 'samsung-usa-android-16-frp-may-2026';
+export const samsungUsaAndroid16FrpName = 'Samsung USA Models Android 16 FRP — May 2026 Security Patch';
+export const samsungUsaAndroid16FrpPrice = 40;

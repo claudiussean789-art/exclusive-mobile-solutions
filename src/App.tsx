@@ -13,6 +13,9 @@ import {
 	samsungUltraFrpModels,
 	samsungUltraFrpName,
 	samsungUltraFrpPrice,
+	samsungUsaAndroid16FrpId,
+	samsungUsaAndroid16FrpName,
+	samsungUsaAndroid16FrpPrice,
 } from './data/jdmFrp';
 import { highlightedWholesaleTags, wholesaleServices, wholesaleTags } from './data/wholesaleServices';
 
@@ -61,6 +64,7 @@ type ServerCreditService = {
 	targetLabel: string;
 	requiresToolEmail?: boolean;
 	requiresTarget?: boolean;
+	minQuantity?: number;
 };
 
 const serverCreditServices: ServerCreditService[] = [
@@ -124,6 +128,7 @@ const serverCreditServices: ServerCreditService[] = [
 		id: 'samkey',
 		name: 'Samkey Server Credits',
 		selectionType: 'quantity',
+		minQuantity: 30,
 		variants: [
 			{ id: 'samkey', name: 'Samkey' },
 			{ id: 'samtmo', name: 'SamTMO' },
@@ -236,6 +241,7 @@ const repairServices: RepairService[] = [
 	{ id: 'software', name: 'Software Flash', category: 'Software', price: 25 },
 	{ id: 'galaxy-a54-frp', name: 'Galaxy A54 5G FRP Service', category: 'Samsung FRP', price: 35 },
 	{ id: 'samsung-frp-other', name: 'Samsung Galaxy FRP Service (Other Models)', category: 'Samsung FRP', price: 35 },
+	{ id: 'icloud-remove', name: 'iCloud Remove', category: 'iCloud Remove', price: null },
 	{ id: 'port', name: 'Charging Port', category: 'Hardware', price: 30 },
 	{ id: 'battery', name: 'Battery Replacement', category: 'Hardware', price: 35 },
 ];
@@ -364,6 +370,19 @@ export default function App() {
 	const [samsungUltraImei, setSamsungUltraImei] = useState('');
 	const validJdmImei = /^\d{15}$/.test(jdmImei.trim());
 	const validSamsungUltraImei = /^\d{15}$/.test(samsungUltraImei.trim());
+	const [samsungUsaImei, setSamsungUsaImei] = useState('');
+	const validSamsungUsaImei = /^\d{15}$/.test(samsungUsaImei.trim());
+	const addSamsungUsaAndroid16Frp = () => {
+		if (!validSamsungUsaImei) return;
+		setCart((current) => [...current, {
+			id: samsungUsaAndroid16FrpId,
+			name: samsungUsaAndroid16FrpName,
+			kind: 'repairs',
+			price: samsungUsaAndroid16FrpPrice,
+			identifier: samsungUsaImei.trim(),
+		}]);
+		setSamsungUsaImei('');
+	};
 	const addJdmFrp = () => {
 		if (!jdmModel || !validJdmImei) return;
 		setCart((current) => [...current, {
@@ -583,9 +602,10 @@ export default function App() {
 		`${service.name} ${service.category}`.toLocaleLowerCase().includes(normalizedQuery),
 
 	);
-	const filteredSamsungFrpServices = filteredServices.filter((service) => service.category === 'Samsung FRP');
-	const filteredOtherServices = filteredServices.filter((service) => service.category !== 'Samsung FRP');
-	const samsungFrpSearchText = 'samsung jdm frp imei galaxy a02 galaxy a03 galaxy a04 galaxy s22 ultra galaxy s23 ultra galaxy s24 ultra galaxy s25 ultra galaxy s26 ultra';
+	const frpSectionCategories = ['Samsung FRP', 'iCloud Remove'];
+	const filteredSamsungFrpServices = filteredServices.filter((service) => frpSectionCategories.includes(service.category));
+	const filteredOtherServices = filteredServices.filter((service) => !frpSectionCategories.includes(service.category));
+	const samsungFrpSearchText = 'samsung usa android 16 may 2026 security patch jdm frp imei galaxy a02 galaxy a03 galaxy a04 galaxy s22 ultra galaxy s23 ultra galaxy s24 ultra galaxy s25 ultra galaxy s26 ultra';
 	const showSamsungFrpSpecials = !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => samsungFrpSearchText.includes(term));
 	const filteredWholesaleServices = wholesaleServices.filter((service) => {
 		const query = wholesaleSearch.trim().toLocaleLowerCase();
@@ -642,6 +662,7 @@ export default function App() {
 
 		}]);
 
+	const [expandedWholesaleId, setExpandedWholesaleId] = useState<string | null>(null);
 	const addWholesaleService = (service: (typeof wholesaleServices)[number]) =>
 		setCart((current) => [...current, {
 			id: service.id,
@@ -683,9 +704,13 @@ export default function App() {
 		const variant = service.variants?.find((item) => item.id === selection);
 		const creditPackage = service.packages?.find((item) => item.id === selection);
 		const description = product?.name ?? (service.selectionType === 'quantity'
-			? `${variant ? `${variant.name} – ` : ''}${creditQuantities[service.id] || '1'} credit${creditQuantities[service.id] === '1' ? '' : 's'}`
+			? `${variant ? `${variant.name} – ` : ''}${creditQuantities[service.id] || String(service.minQuantity ?? 1)} credit${creditQuantities[service.id] === '1' ? '' : 's'}`
 			: creditPackage?.name ?? (service.selectionType === 'request' ? 'Service request' : selection));
 		if (!description) return;
+		if (service.selectionType === 'quantity') {
+			const requestedQuantity = Number(creditQuantities[service.id] ?? service.minQuantity ?? 1);
+			if (!Number.isInteger(requestedQuantity) || requestedQuantity < (service.minQuantity ?? 1)) return;
+		}
 		if (service.requiresToolEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(creditTargets[service.id]?.trim() ?? '')) return;
 		if (service.requiresTarget && !creditTargets[service.id]?.trim()) return;
 
@@ -1270,8 +1295,22 @@ export default function App() {
 									</div>
 									{filteredWholesaleServices.length ? (
 										<div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
-											{filteredWholesaleServices.map((service) => (
-												<article className="flex min-w-0 flex-col rounded-xl border border-[#294572] bg-[#07142e] p-4 transition hover:border-sky-500/60" key={service.id}>
+											{filteredWholesaleServices.map((service) => {
+												const expanded = expandedWholesaleId === service.id;
+												return (
+												<article className={`flex min-w-0 flex-col rounded-xl border bg-[#07142e] p-4 transition hover:border-sky-500/60 ${expanded ? 'border-sky-500/60 sm:col-span-2' : 'border-[#294572]'}`} key={service.id}>
+													<button
+														className="mb-2 flex w-full items-center justify-between gap-3 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
+														type="button"
+														aria-expanded={expanded}
+														aria-controls={`wholesale-details-${service.id}`}
+														onClick={() => setExpandedWholesaleId(expanded ? null : service.id)}
+													>
+														<span className="text-[11px] font-semibold text-sky-300">{expanded ? 'Hide details' : 'View service details'}</span>
+														<svg aria-hidden="true" className={`h-4 w-4 text-sky-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+															<path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+														</svg>
+													</button>
 													{service.logo && (
 														<div className="mb-3 flex h-20 items-center justify-center rounded-lg border border-[#16466d] bg-[#050d22] p-2">
 															<img src={service.logo} alt={`${service.title} logo`} className="h-full w-full object-contain" loading="lazy" />
@@ -1286,6 +1325,40 @@ export default function App() {
 													<p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{service.category}</p>
 													<h4 className="text-sm font-bold leading-snug text-slate-100">{service.title}</h4>
 													<p className="mt-2 flex-1 text-xs leading-5 text-slate-400">{service.description}</p>
+													{expanded && (
+														<div className="mt-3 grid gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100" id={`wholesale-details-${service.id}`}>
+															<div>
+																<p className="font-semibold text-white">What this service is</p>
+																<p className="mt-1 text-slate-200">{service.description}</p>
+															</div>
+															<dl className="grid gap-2 sm:grid-cols-3">
+																<div>
+																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Category</dt>
+																	<dd className="mt-0.5 text-slate-200">{service.category}</dd>
+																</div>
+																<div>
+																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Delivery time</dt>
+																	<dd className="mt-0.5 text-slate-200">{service.time}</dd>
+																</div>
+																<div>
+																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Price</dt>
+																	<dd className="mt-0.5 text-slate-200">{service.requestOnly ? `${service.price.toFixed(4)} USD / check` : `${formatPrice(service.price)} USD`}</dd>
+																</div>
+															</dl>
+															<div>
+																<p className="font-semibold text-white">Supports</p>
+																<p className="mt-1 text-slate-200">{service.tags.join(' • ')}</p>
+															</div>
+															<div>
+																<p className="font-semibold text-white">How it works</p>
+																<ol className="mt-1 list-decimal pl-4 text-slate-200">
+																	<li>{service.requestOnly ? 'Send your request through WhatsApp.' : 'Add the service to your cart and complete checkout.'}</li>
+																	<li>Provide the device IMEI / serial or account details when asked.</li>
+																	<li>Our team processes the order and delivers within {service.time.toLowerCase()}.</li>
+																</ol>
+															</div>
+														</div>
+													)}
 													<div className="mt-3 flex flex-wrap gap-1.5 border-t border-blue-300/10 pt-3">
 														{service.tags.map((tag) => (
 															<span className="rounded bg-white/5 px-1.5 py-1 text-[9px] text-slate-400" key={tag}>{tag}</span>
@@ -1317,7 +1390,8 @@ export default function App() {
 														)}
 													</div>
 												</article>
-											))}
+												);
+											})}
 										</div>
 									) : (
 										<div className="rounded-xl border border-blue-300/15 bg-[#07142e] p-7 text-center" role="status">
@@ -1399,7 +1473,7 @@ export default function App() {
 										<section aria-labelledby="samsung-frp-title" className="space-y-2">
 											<div className="border-b border-blue-300/15 pb-2">
 												<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Dedicated</p>
-												<h3 className="text-base font-bold" id="samsung-frp-title">Samsung FRP</h3>
+												<h3 className="text-base font-bold" id="samsung-frp-title">Samsung FRP &amp; iCloud</h3>
 											</div>
 											{renderRepairServices(filteredSamsungFrpServices)}
 											{(!normalizedQuery || 'samsung jdm frp imei'.includes(normalizedQuery)) && (
@@ -1499,6 +1573,40 @@ export default function App() {
 													</div>
 												</div>
 											)}
+											{showSamsungFrpSpecials && (
+												<div className="grid gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-4">
+													<div>
+														<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Samsung FRP</p>
+														<h4 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">Samsung USA Models — Android 16 FRP (May 2026 security patch)</h4>
+														<p className="mt-1 text-xs text-slate-400">Enter the device's 15-digit IMEI to request service.</p>
+													</div>
+													<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+														IMEI number <span className="text-red-300">Required</span>
+														<input
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+															type="text"
+															inputMode="numeric"
+															maxLength={15}
+															autoComplete="off"
+															placeholder="15-digit IMEI (dial *#06#)"
+															value={samsungUsaImei}
+															onChange={(event) => setSamsungUsaImei(event.target.value.replace(/\D/g, ''))}
+														/>
+														{samsungUsaImei.length > 0 && !validSamsungUsaImei && <span className="text-amber-200">IMEI must be exactly 15 digits.</span>}
+													</label>
+													<div className="flex items-center justify-between gap-3">
+														<strong className="text-lg text-sky-300">{formatPrice(samsungUsaAndroid16FrpPrice)} USD</strong>
+														<button
+															className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
+															type="button"
+															disabled={!validSamsungUsaImei}
+															onClick={addSamsungUsaAndroid16Frp}
+														>
+															Add service
+														</button>
+													</div>
+												</div>
+											)}
 										</section>
 									)}
 									{filteredOtherServices.length > 0 && (
@@ -1529,7 +1637,8 @@ export default function App() {
 								<div className="grid gap-3">
 									{serverCreditServices.map((service) => {
 										const selectedDuration = creditSelections[service.id] ?? service.packages?.[0]?.id ?? '';
-										const quantity = creditQuantities[service.id] ?? '1';
+										const minQuantity = service.minQuantity ?? 1;
+										const quantity = creditQuantities[service.id] ?? String(minQuantity);
 										const quantityValue = Number(quantity);
 										const creditTarget = creditTargets[service.id]?.trim() ?? '';
 										const selectedProduct = service.products?.find((product) => product.id === selectedDuration);
@@ -1538,7 +1647,7 @@ export default function App() {
 										const canAddSelection = service.selectionType === 'duration'
 											? selectedDuration.length > 0
 											: service.selectionType === 'quantity'
-												? Number.isInteger(quantityValue) && quantityValue > 0 && (!service.variants || selectedDuration.length > 0)
+												? Number.isInteger(quantityValue) && quantityValue >= minQuantity && (!service.variants || selectedDuration.length > 0)
 												: true;
 										const canAdd = canAddSelection
 											&& (!service.requiresToolEmail || validToolEmail)
@@ -1725,12 +1834,13 @@ export default function App() {
 																<input
 																	className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none focus:border-sky-400"
 																	type="number"
-																	min="1"
+																	min={minQuantity}
 																	step="1"
 																	inputMode="numeric"
 																	value={quantity}
 																	onChange={(event) => setCreditQuantities((current) => ({ ...current, [service.id]: event.target.value }))}
 																/>
+																{minQuantity > 1 && <span className="text-[11px] text-slate-500">Minimum order: {minQuantity} credits</span>}
 															</label>
 														</>
 													) : (
