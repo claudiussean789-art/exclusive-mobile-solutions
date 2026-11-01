@@ -1171,19 +1171,14 @@ export default function App() {
 						)}
 					</p>
 				</div>
-				<section className="flex items-center gap-4 py-6 sm:py-8" aria-labelledby="page-title">
-					<span className="flex shrink-0 items-center gap-2 text-sky-400" aria-hidden="true">
-						<span className="grid h-11 w-11 place-items-center rounded-xl border border-sky-500/30 bg-sky-500/10"><DeviceIcon className="h-6 w-6" /></span>
-						<span className="grid h-11 w-11 place-items-center rounded-xl border border-sky-500/30 bg-sky-500/10"><WrenchIcon className="h-6 w-6" /></span>
-					</span>
-					<div>
-						<h1 className="text-xl font-extrabold leading-tight sm:text-2xl" id="page-title">
-							Devices and repairs, <span className="text-sky-400">made simple.</span>
-						</h1>
-						<p className="mt-1 text-sm text-slate-400">
-							Choose a device or a repair service, then send your request straight to our team.
-						</p>
-					</div>
+				<section className="py-12 sm:py-16" aria-labelledby="page-title">
+					<p className="mb-4 text-xs font-bold tracking-[.2em] text-sky-400">YOUR LOCAL MOBILE SPECIALISTS</p>
+					<h1 className="max-w-3xl text-5xl font-extrabold leading-[.98] sm:text-7xl" id="page-title">
+						Devices and repairs,<br /><span className="text-sky-400">made simple.</span>
+					</h1>
+					<p className="mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
+						Choose a device or a repair service, then send your request straight to our team.
+					</p>
 				</section>
 
 				<form onSubmit={handleWhatsAppCheckout}>
