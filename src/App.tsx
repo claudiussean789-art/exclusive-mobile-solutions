@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import AccountPanel from './components/AccountPanel';
 import AdminPanel from './components/AdminPanel';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { cryptoPayment } from './data/cryptoPayment';
+import { cryptoPayment, paypalPayment } from './data/cryptoPayment';
 import {
 	jdmFrpId,
 	jdmFrpModels,
@@ -17,12 +17,18 @@ import {
 	samsungUsaAndroid16FrpName,
 	samsungUsaAndroid16FrpPrice,
 } from './data/jdmFrp';
-import { highlightedWholesaleTags, wholesaleServices, wholesaleTags } from './data/wholesaleServices';
 
-type OrderType = 'devices' | 'repairs' | 'wholesale' | 'credits';
+type OrderType = 'devices' | 'repairs' | 'credits';
 type CartKind = OrderType | 'credits';
 type PaymentMethod = 'local' | 'payoneer' | 'wipay' | 'paypal' | 'wallet' | 'crypto';
 type LocalRail = 'lynk';
+
+// Header category bar: each entry opens the matching tab.
+const storeCategories: { label: string; orderType: OrderType }[] = [
+	{ label: 'Server Credits', orderType: 'credits' },
+	{ label: 'Network Unlocking', orderType: 'devices' },
+	{ label: 'FRP Services', orderType: 'repairs' },
+];
 
 type Device = {
 	id: string;
@@ -424,8 +430,14 @@ export default function App() {
 	const [creditSelections, setCreditSelections] = useState<Record<string, string>>({});
 	const [creditQuantities, setCreditQuantities] = useState<Record<string, string>>({});
 	const [creditTargets, setCreditTargets] = useState<Record<string, string>>({});
-	const [wholesaleTag, setWholesaleTag] = useState<string | null>(null);
-	const [wholesaleSearch, setWholesaleSearch] = useState('');
+	const chooseStoreCategory = (category: (typeof storeCategories)[number]) => {
+		setOrderType(category.orderType);
+		document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	};
+	const handleHeaderSearch = (value: string) => {
+		setSearchQuery(value);
+		if (value && orderType === 'credits') setOrderType('devices');
+	};
 	const [isAdminView, setIsAdminView] = useState(() => window.location.pathname.replace(/\/+$/, '') === '/admin');
 
 	const refreshWalletBalance = useCallback(async (userId: string) => {
@@ -607,18 +619,10 @@ export default function App() {
 	const filteredOtherServices = filteredServices.filter((service) => !frpSectionCategories.includes(service.category));
 	const samsungFrpSearchText = 'samsung usa android 16 may 2026 security patch jdm frp imei galaxy a02 galaxy a03 galaxy a04 galaxy s22 ultra galaxy s23 ultra galaxy s24 ultra galaxy s25 ultra galaxy s26 ultra';
 	const showSamsungFrpSpecials = !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => samsungFrpSearchText.includes(term));
-	const filteredWholesaleServices = wholesaleServices.filter((service) => {
-		const query = wholesaleSearch.trim().toLocaleLowerCase();
-		const matchesQuery = !query || `${service.title} ${service.description} ${service.category} ${service.tags.join(' ')}`
-			.toLocaleLowerCase()
-			.includes(query);
-		return matchesQuery && (!wholesaleTag || service.tags.includes(wholesaleTag));
-	});
 
 	const hasRepairs = cart.some((item) => item.kind === 'repairs');
 	const hasDevices = cart.some((item) => item.kind === 'devices');
 	const hasCredits = cart.some((item) => item.kind === 'credits');
-	const hasWholesale = cart.some((item) => item.kind === 'wholesale');
 	const hasUnpricedCredits = cart.some((item) => item.kind === 'credits' && item.price === null);
 	const hasUnpricedDevices = cart.some((item) => item.kind === 'devices' && item.price === null);
 	const hasUnpricedRepairs = cart.some((item) => item.kind === 'repairs' && item.price === null);
@@ -626,8 +630,7 @@ export default function App() {
 	const deviceTotal = cart.reduce((sum, item) => sum + (item.kind === 'devices' ? item.price ?? 0 : 0), 0);
 	const repairTotal = cart.reduce((sum, item) => sum + (item.kind === 'repairs' ? item.price ?? 0 : 0), 0);
 	const creditTotal = cart.reduce((sum, item) => sum + (item.kind === 'credits' ? item.price ?? 0 : 0), 0);
-	const wholesaleTotal = cart.reduce((sum, item) => sum + (item.kind === 'wholesale' ? item.price ?? 0 : 0), 0);
-	const orderTotal = deviceTotal + repairTotal + creditTotal + wholesaleTotal;
+	const orderTotal = deviceTotal + repairTotal + creditTotal;
 
 	const addDevice = (brand: string, device: Device) =>
 		setCart((current) => [...current, {
@@ -660,15 +663,6 @@ export default function App() {
 
 			price: service.price,
 
-		}]);
-
-	const [expandedWholesaleId, setExpandedWholesaleId] = useState<string | null>(null);
-	const addWholesaleService = (service: (typeof wholesaleServices)[number]) =>
-		setCart((current) => [...current, {
-			id: service.id,
-			name: service.title,
-			kind: 'wholesale',
-			price: service.price,
 		}]);
 
 	const renderRepairServices = (services: RepairService[]) => (
@@ -753,7 +747,7 @@ export default function App() {
 				return;
 			}
 			const hasWalletIneligibleItems = cart.some((item) =>
-				!['devices', 'repairs', 'wholesale', 'credits'].includes(item.kind) || item.price === null,
+				!['devices', 'repairs', 'credits'].includes(item.kind) || item.price === null,
 			);
 			if (cart.length === 0 || hasWalletIneligibleItems) {
 				setCheckoutNotice('Wallet checkout requires every selected device or service to have a confirmed price. Remove unpriced items or request a quote separately.');
@@ -906,7 +900,6 @@ export default function App() {
 		const devices = cart.filter((item) => item.kind === 'devices');
 		const repairs = cart.filter((item) => item.kind === 'repairs');
 		const credits = cart.filter((item) => item.kind === 'credits');
-		const wholesale = cart.filter((item) => item.kind === 'wholesale');
 		const invoiceReference = `EMS-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 		const payment = paymentMethod === 'local'
 			? `Local Transfer (${localRail.toUpperCase()})`
@@ -916,21 +909,13 @@ export default function App() {
 					? 'WiPay — please send current payment instructions'
 					: 'PayPal';
 						const messageLines = [
-							devices.length && repairs.length && wholesale.length
-								? '*EXCLUSIVE MOBILE SOLUTIONS - DEVICE, REPAIR AND WHOLESALE REQUEST*'
-								: devices.length && repairs.length
+							devices.length && repairs.length
 								? '*EXCLUSIVE MOBILE SOLUTIONS - DEVICE PURCHASE AND REPAIR REQUEST*'
-								: devices.length && wholesale.length
-									? '*EXCLUSIVE MOBILE SOLUTIONS - DEVICE AND WHOLESALE REQUEST*'
-									: repairs.length && wholesale.length
-										? '*EXCLUSIVE MOBILE SOLUTIONS - REPAIR AND WHOLESALE REQUEST*'
-										: devices.length
+								: devices.length
 									? '*EXCLUSIVE MOBILE SOLUTIONS - DEVICE PURCHASE*'
 									: repairs.length
 						? '*EXCLUSIVE MOBILE SOLUTIONS - REPAIR SERVICE ORDER*'
-						: wholesale.length
-							? '*EXCLUSIVE MOBILE SOLUTIONS - WHOLESALE SERVICES REQUEST*'
-							: '*EXCLUSIVE MOBILE SOLUTIONS - SERVER CREDITS REQUEST*',
+						: '*EXCLUSIVE MOBILE SOLUTIONS - SERVER CREDITS REQUEST*',
 			`Customer Name: ${customerName}`,
 			...(customerEmail.trim() ? [`Customer Email: ${customerEmail.trim()}`] : []),
 			...(customerPhone.trim() ? [`Customer Phone: ${customerPhone.trim()}`] : []),
@@ -961,15 +946,8 @@ export default function App() {
 			);
 			if (hasUnpricedCredits) messageLines.push('Pricing and payment for unpriced server credit services will be confirmed by the team.');
 		}
-		if (wholesale.length) {
-			messageLines.push(
-				'',
-				'Wholesale services:',
-				...wholesale.map((item) => `- ${item.name} (${formatPrice(item.price ?? 0)} USD)`),
-			);
-		}
 		if (repairs.length) messageLines.push('', 'Appointment schedule: Monday–Saturday. Sunday emergency appointments only, 11:00 PM–3:00 AM.');
-		messageLines.push('', `Device total: ${formatPrice(deviceTotal)} USD`, `Repair services total: ${formatPrice(repairTotal)} USD`, `Priced server credits total: ${formatPrice(creditTotal)} USD`, `Wholesale services total: ${formatPrice(wholesaleTotal)} USD`);
+		messageLines.push('', `Device total: ${formatPrice(deviceTotal)} USD`, `Repair services total: ${formatPrice(repairTotal)} USD`, `Priced server credits total: ${formatPrice(creditTotal)} USD`);
 		if (hasUnpricedDevices) messageLines.push('Note: device total excludes devices whose price is to be confirmed.');
 		if (hasUnpricedRepairs) messageLines.push('Note: repair service prices pending confirmation are excluded from the repair total.');
 		messageLines.push(
@@ -1047,8 +1025,18 @@ export default function App() {
 			<header className="sticky top-0 z-10 border-b border-blue-300/15 bg-[#050d22]/95 backdrop-blur">
 				<div className="mx-auto flex min-h-[76px] w-[min(100%-2rem,1160px)] items-center justify-between gap-4">
 					<BrandLogo />
+					<label className="mx-2 hidden min-h-11 max-w-2xl flex-1 items-center gap-3 rounded-md bg-white px-4 text-slate-500 sm:flex">
+						<input
+							className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-500"
+							type="search"
+							value={searchQuery}
+							onChange={(event) => handleHeaderSearch(event.target.value)}
+							placeholder="Search..."
+							aria-label="Search services and devices"
+						/>
+						<SearchIcon />
+					</label>
 					<div className="flex items-center gap-3">
-						<span className="hidden text-xs font-bold tracking-[.15em] text-slate-400 sm:block">DEVICE CARE, DONE RIGHT</span>
 						<a
 							className="relative grid h-10 w-10 place-items-center rounded-lg border border-white/25 text-white transition hover:border-sky-400 hover:text-sky-200"
 							href="#checkout-summary"
@@ -1088,6 +1076,34 @@ export default function App() {
 						>
 							{authLoading ? 'Loading…' : user ? `My account · ${formatWalletBalance(walletBalance)}` : 'Sign in'}
 						</button>
+					</div>
+				</div>
+				<div className="mx-auto w-[min(100%-2rem,1160px)] pb-3 sm:hidden">
+					<label className="flex min-h-11 items-center gap-3 rounded-md bg-white px-4 text-slate-500">
+						<input
+							className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-500"
+							type="search"
+							value={searchQuery}
+							onChange={(event) => handleHeaderSearch(event.target.value)}
+							placeholder="Search..."
+							aria-label="Search services and devices"
+						/>
+						<SearchIcon />
+					</label>
+				</div>
+				<div className="border-t border-blue-300/15 bg-white">
+					<div className="mx-auto flex w-[min(100%-2rem,1160px)] items-center justify-between gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Browse by category">
+						{storeCategories.map((category) => (
+							<button
+								className={`min-h-12 shrink-0 border-b-2 px-2 text-sm font-semibold transition ${orderType === category.orderType ? 'border-sky-500 text-sky-700' : 'border-transparent text-slate-800 hover:text-sky-600'}`}
+								key={category.label}
+								type="button"
+								aria-pressed={orderType === category.orderType}
+								onClick={() => chooseStoreCategory(category)}
+							>
+								{category.label}
+							</button>
+						))}
 					</div>
 				</div>
 				{navigationOpen && (
@@ -1155,23 +1171,6 @@ export default function App() {
 						)}
 					</p>
 				</div>
-				<div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Popular service filters">
-					{['Google Pixel', 'FMI OFF for iPad WiFi', 'AT&T', 'T-Mobile — PRO', 'Mexico Nextel', 'iCloud'].map((tag) => (
-						<button
-							className="shrink-0 rounded-full border border-[#294572] bg-[#091835] px-3 py-1.5 text-xs font-medium text-sky-200 transition hover:border-sky-400 hover:bg-sky-950"
-							key={tag}
-							type="button"
-							onClick={() => {
-								setOrderType('wholesale');
-								setWholesaleSearch('');
-								setWholesaleTag(tag);
-								document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-							}}
-						>
-							{tag}
-						</button>
-					))}
-				</div>
 				<section className="py-12 sm:py-16" aria-labelledby="page-title">
 					<p className="mb-4 text-xs font-bold tracking-[.2em] text-sky-400">YOUR LOCAL MOBILE SPECIALISTS</p>
 					<h1 className="max-w-3xl text-5xl font-extrabold leading-[.98] sm:text-7xl" id="page-title">
@@ -1182,52 +1181,17 @@ export default function App() {
 					</p>
 				</section>
 
-				<div className="mb-7 grid w-full max-w-3xl grid-cols-1 gap-1.5 rounded-xl border border-blue-300/20 bg-[#091835] p-1.5 sm:grid-cols-4" role="group" aria-label="Choose order type">
-					<button
-						className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors sm:text-base ${orderType === 'devices' ? 'bg-sky-500 text-[#03142a]' : 'text-slate-300 hover:bg-white/5'}`}
-						type="button"
-						aria-pressed={orderType === 'devices'}
-						onClick={() => setOrderType('devices')}
-					>
-						<DeviceIcon className="h-[18px] w-[18px]" /> Network Unlocking
-					</button>
-					<button
-						className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors sm:text-base ${orderType === 'repairs' ? 'bg-sky-500 text-[#03142a]' : 'text-slate-300 hover:bg-white/5'}`}
-						type="button"
-						aria-pressed={orderType === 'repairs'}
-						onClick={() => setOrderType('repairs')}
-					>
-						<WrenchIcon className="h-[18px] w-[18px]" /> FRP Services
-					</button>
-					<button
-						className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors sm:text-base ${orderType === 'wholesale' ? 'bg-sky-500 text-[#03142a]' : 'text-slate-300 hover:bg-white/5'}`}
-						type="button"
-						aria-pressed={orderType === 'wholesale'}
-						onClick={() => setOrderType('wholesale')}
-					>
-						Wholesale Services
-					</button>
-					<button
-						className={`flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors sm:text-base ${orderType === 'credits' ? 'bg-sky-500 text-[#03142a]' : 'text-slate-300 hover:bg-white/5'}`}
-						type="button"
-						aria-pressed={orderType === 'credits'}
-						onClick={() => setOrderType('credits')}
-					>
-						Server Credits
-					</button>
-				</div>
-
 				<form onSubmit={handleWhatsAppCheckout}>
 					<div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
 						<section aria-labelledby="catalog-title">
 							<div className={`mb-5 flex items-end justify-between gap-4 ${orderType === 'credits' ? 'hidden' : ''}`}>
 								<div>
-									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : 'WHOLESALE CATALOG'}</p>
+									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : 'BOOK A REPAIR'}</p>
 									<h2 className="text-3xl font-bold leading-tight sm:text-4xl" id="catalog-title">
-										{orderType === 'devices' ? 'Find your next phone' : orderType === 'repairs' ? 'What can we fix?' : 'Products & services'}
+										{orderType === 'devices' ? 'Find your next phone' : 'What can we fix?'}
 									</h2>
 								</div>
-								<span className="hidden text-sm text-slate-500 sm:block">{orderType === 'devices' ? 'Browse by brand' : orderType === 'repairs' ? `${filteredServices.length} services` : `${filteredWholesaleServices.length} services`}</span>
+								<span className="hidden text-sm text-slate-500 sm:block">{orderType === 'devices' ? 'Browse by brand' : `${filteredServices.length} services`}</span>
 							</div>
 							{orderType === 'repairs' && (
 								<div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs leading-5 text-sky-100">
@@ -1240,167 +1204,19 @@ export default function App() {
 								<input
 									className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500 sm:text-base"
 									type="search"
-									value={orderType === 'wholesale' ? wholesaleSearch : searchQuery}
-									onChange={(event) => orderType === 'wholesale' ? setWholesaleSearch(event.target.value) : setSearchQuery(event.target.value)}
-									placeholder={orderType === 'devices' ? 'Search all brands and models...' : orderType === 'repairs' ? 'Search repair services...' : 'Search services, carriers or device models...'}
-									aria-label={orderType === 'devices' ? 'Search device brands and models' : orderType === 'repairs' ? 'Search repair services' : 'Search wholesale services'}
+									value={searchQuery}
+									onChange={(event) => setSearchQuery(event.target.value)}
+									placeholder={orderType === 'devices' ? 'Search all brands and models...' : 'Search repair services...'}
+									aria-label={orderType === 'devices' ? 'Search device brands and models' : 'Search repair services'}
 								/>
-								{(orderType === 'wholesale' ? wholesaleSearch : searchQuery) && (
-									<button className="text-xs font-semibold text-sky-400 hover:text-white" type="button" onClick={() => orderType === 'wholesale' ? setWholesaleSearch('') : setSearchQuery('')}>
+								{searchQuery && (
+									<button className="text-xs font-semibold text-sky-400 hover:text-white" type="button" onClick={() => setSearchQuery('')}>
 										Clear
 									</button>
 								)}
 							</label>}
 
-							{orderType === 'credits' ? null : orderType === 'wholesale' ? (
-								<div className="rounded-2xl border border-[#243f70] bg-[#091835] p-4 sm:p-6">
-									<div className="mb-5 flex flex-col gap-3 border-b border-blue-300/15 pb-4 sm:flex-row sm:items-end sm:justify-between">
-										<div>
-											<p className="mb-1 text-[10px] font-bold uppercase tracking-[.18em] text-sky-400">Official unlock & service portal</p>
-											<h3 className="text-xl font-bold text-white">Available models &amp; services</h3>
-											<p className="mt-1 text-xs text-slate-400">Search the catalog or choose a tag to narrow the results.</p>
-										</div>
-										<span className="w-fit rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-200">
-											{filteredWholesaleServices.length} {filteredWholesaleServices.length === 1 ? 'service' : 'services'}
-										</span>
-									</div>
-									<div className="mb-5">
-										<div className="mb-2 flex items-center justify-between gap-3">
-											<p className="text-[10px] font-bold tracking-wider text-slate-400">FILTER BY MODEL OR SERVICE</p>
-											<button
-												className="text-xs font-semibold text-sky-300 hover:text-white"
-												type="button"
-												onClick={() => { setWholesaleTag(null); setWholesaleSearch(''); }}
-											>
-												Reset filters
-											</button>
-										</div>
-										<div className="flex flex-wrap gap-2">
-											{wholesaleTags.map((tag) => {
-												const isHighlighted = highlightedWholesaleTags.has(tag);
-												const isSelected = wholesaleTag === tag;
-												return (
-													<button
-														className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${isSelected ? 'border-sky-400 bg-sky-500 text-[#03142a]' : isHighlighted ? 'border-amber-400/50 bg-amber-400/10 text-amber-100 hover:border-amber-300' : 'border-[#294572] bg-[#07142e] text-slate-300 hover:border-sky-400 hover:text-white'}`}
-														key={tag}
-														type="button"
-														aria-pressed={isSelected}
-														onClick={() => setWholesaleTag(isSelected ? null : tag)}
-													>
-														{tag}
-													</button>
-												);
-											})}
-										</div>
-									</div>
-									{filteredWholesaleServices.length ? (
-										<div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
-											{filteredWholesaleServices.map((service) => {
-												const expanded = expandedWholesaleId === service.id;
-												return (
-												<article className={`flex min-w-0 flex-col rounded-xl border bg-[#07142e] p-4 transition hover:border-sky-500/60 ${expanded ? 'border-sky-500/60 sm:col-span-2' : 'border-[#294572]'}`} key={service.id}>
-													<button
-														className="mb-2 flex w-full items-center justify-between gap-3 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400"
-														type="button"
-														aria-expanded={expanded}
-														aria-controls={`wholesale-details-${service.id}`}
-														onClick={() => setExpandedWholesaleId(expanded ? null : service.id)}
-													>
-														<span className="text-[11px] font-semibold text-sky-300">{expanded ? 'Hide details' : 'View service details'}</span>
-														<svg aria-hidden="true" className={`h-4 w-4 text-sky-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-															<path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-														</svg>
-													</button>
-													{service.logo && (
-														<div className="mb-3 flex h-20 items-center justify-center rounded-lg border border-[#16466d] bg-[#050d22] p-2">
-															<img src={service.logo} alt={`${service.title} logo`} className="h-full w-full object-contain" loading="lazy" />
-														</div>
-													)}
-													<div className="mb-2 flex items-center justify-between gap-3">
-														<span className={`rounded px-2 py-1 text-[9px] font-extrabold tracking-wide ${service.status === 'INSTANT' ? 'bg-emerald-400/15 text-emerald-200' : service.status === 'EXPRESS' ? 'bg-sky-400/15 text-sky-200' : service.status === 'HOT' ? 'bg-amber-400/15 text-amber-200' : service.status === 'SPECIAL' ? 'bg-rose-400/15 text-rose-200' : 'bg-violet-400/15 text-violet-200'}`}>
-															{service.status}
-														</span>
-														<span className="text-[11px] text-slate-400">{service.time}</span>
-													</div>
-													<p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{service.category}</p>
-													<h4 className="text-sm font-bold leading-snug text-slate-100">{service.title}</h4>
-													<p className="mt-2 flex-1 text-xs leading-5 text-slate-400">{service.description}</p>
-													{expanded && (
-														<div className="mt-3 grid gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100" id={`wholesale-details-${service.id}`}>
-															<div>
-																<p className="font-semibold text-white">What this service is</p>
-																<p className="mt-1 text-slate-200">{service.description}</p>
-															</div>
-															<dl className="grid gap-2 sm:grid-cols-3">
-																<div>
-																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Category</dt>
-																	<dd className="mt-0.5 text-slate-200">{service.category}</dd>
-																</div>
-																<div>
-																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Delivery time</dt>
-																	<dd className="mt-0.5 text-slate-200">{service.time}</dd>
-																</div>
-																<div>
-																	<dt className="text-[10px] font-bold uppercase tracking-wider text-sky-300">Price</dt>
-																	<dd className="mt-0.5 text-slate-200">{service.requestOnly ? `${service.price.toFixed(4)} USD / check` : `${formatPrice(service.price)} USD`}</dd>
-																</div>
-															</dl>
-															<div>
-																<p className="font-semibold text-white">Supports</p>
-																<p className="mt-1 text-slate-200">{service.tags.join(' • ')}</p>
-															</div>
-															<div>
-																<p className="font-semibold text-white">How it works</p>
-																<ol className="mt-1 list-decimal pl-4 text-slate-200">
-																	<li>{service.requestOnly ? 'Send your request through WhatsApp.' : 'Add the service to your cart and complete checkout.'}</li>
-																	<li>Provide the device IMEI / serial or account details when asked.</li>
-																	<li>Our team processes the order and delivers within {service.time.toLowerCase()}.</li>
-																</ol>
-															</div>
-														</div>
-													)}
-													<div className="mt-3 flex flex-wrap gap-1.5 border-t border-blue-300/10 pt-3">
-														{service.tags.map((tag) => (
-															<span className="rounded bg-white/5 px-1.5 py-1 text-[9px] text-slate-400" key={tag}>{tag}</span>
-														))}
-													</div>
-													<div className="mt-3 flex items-center justify-between gap-3">
-														<span className="text-xs font-semibold text-slate-300">
-															{service.requestOnly
-																? <>Price <strong className="text-sky-300">{service.price.toFixed(4)} USD / check</strong></>
-																: <>Price <strong className="text-sky-300">{formatPrice(service.price)} USD</strong></>}
-														</span>
-														{service.requestOnly ? (
-															<a
-																className="inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10"
-																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request a Google Pixel information check. Listed price: $${service.price.toFixed(4)} per check.`)}`}
-																target="_blank"
-																rel="noopener noreferrer"
-															>
-																Request check
-															</a>
-														) : (
-															<button
-																className="min-h-9 rounded-lg bg-sky-500 px-3 text-xs font-bold text-[#03142a] transition hover:bg-sky-300"
-																type="button"
-																onClick={() => addWholesaleService(service)}
-															>
-																Add to cart
-															</button>
-														)}
-													</div>
-												</article>
-												);
-											})}
-										</div>
-									) : (
-										<div className="rounded-xl border border-blue-300/15 bg-[#07142e] p-7 text-center" role="status">
-											<p className="text-sm font-semibold text-slate-200">No matching models or services found</p>
-											<p className="mt-1 text-xs text-slate-400">Try another search or reset your filters.</p>
-										</div>
-									)}
-								</div>
-							) : orderType === 'devices' ? (
+							{orderType === 'credits' ? null : orderType === 'devices' ? (
 								filteredBrands.length ? (
 									<div className="space-y-7" aria-live="polite">
 										{filteredBrands.map((brand) => {
@@ -1939,13 +1755,7 @@ export default function App() {
 									<strong>{formatPrice(deviceTotal)} <small className="text-xs font-normal text-slate-500">USD</small></strong>
 								</div>
 							)}
-							{hasWholesale && (
-								<div className={`flex items-center justify-between ${hasDevices || hasRepairs ? '' : 'border-t border-blue-300/15'} py-4`}>
-									<span className="text-sm text-slate-400">Wholesale services total</span>
-									<strong>{formatPrice(wholesaleTotal)} <small className="text-xs font-normal text-slate-500">USD</small></strong>
-								</div>
-							)}
-							{(hasDevices || hasRepairs || hasCredits || hasWholesale) && (
+							{(hasDevices || hasRepairs || hasCredits) && (
 								<>
 									<div className="my-2 flex items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-4" aria-live="polite">
 										<span className="text-sm font-semibold text-slate-100">
@@ -2063,6 +1873,9 @@ export default function App() {
 										{paymentMethod === 'paypal' && (
 											<p className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs leading-5 text-blue-100" role="status">
 												Sign in or create an account here so your order can be saved. Then continue to PayPal to sign in or create a PayPal account and approve payment. You’ll return here after approval.
+												<span className="mt-2 block border-t border-blue-300/20 pt-2">
+													Prefer to pay manually? Send {formatPrice(orderTotal)} USD to <strong className="break-all text-white">{paypalPayment.email}</strong> on PayPal using <strong className="text-white">Goods &amp; Services</strong>, then include your order details when you send your request.
+												</span>
 											</p>
 										)}
 										{paymentMethod === 'payoneer' && (
@@ -2234,7 +2047,7 @@ export default function App() {
 								type="submit"
 								disabled={cart.length === 0 || checkoutBusy}
 							>
-								<span>{checkoutBusy ? 'Processing…' : paymentMethod === 'wallet' ? 'Pay with wallet credit' : paymentMethod === 'crypto' ? 'Submit for payment verification' : paymentMethod === 'payoneer' ? 'Request Payoneer invoice' : paymentMethod === 'wipay' ? 'Request WiPay payment instructions' : hasWholesale ? 'Send service request' : hasDevices && hasRepairs ? 'Send combined request' : hasDevices ? 'Enquire on WhatsApp' : 'Send repair request'}</span>
+								<span>{checkoutBusy ? 'Processing…' : paymentMethod === 'wallet' ? 'Pay with wallet credit' : paymentMethod === 'crypto' ? 'Submit for payment verification' : paymentMethod === 'payoneer' ? 'Request Payoneer invoice' : paymentMethod === 'wipay' ? 'Request WiPay payment instructions' : hasDevices && hasRepairs ? 'Send combined request' : hasDevices ? 'Enquire on WhatsApp' : 'Send repair request'}</span>
 								<ArrowIcon />
 							</button>
 							{checkoutNotice && (

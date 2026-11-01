@@ -5,3 +5,7 @@ export const cryptoPayment = {
 	qrImagePath: '/images/UPDATE_WITH_USDT_TRC20_QR.png',
 	btcAddress: 'bc1qwfzxjxfhjnhx4aqr8zc8xuvya3g96kra2k06r6',
 } as const;
+
+export const paypalPayment = {
+	email: 'seanclaudiuz@gmail.com',
+} as const;
