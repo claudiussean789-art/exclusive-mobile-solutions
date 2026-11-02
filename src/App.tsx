@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import type { User } from '@supabase/supabase-js';
 import AccountPanel from './components/AccountPanel';
 import AdminPanel from './components/AdminPanel';
+import ServiceShowcase from './components/ServiceShowcase';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { cryptoPayment, paypalPayment } from './data/cryptoPayment';
 import {
@@ -748,9 +749,9 @@ export default function App() {
 							className="min-h-8 rounded-lg border border-sky-800 bg-[#092342] px-3 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458]"
 							type="button"
 							onClick={() => addRepair(service)}
-							aria-label={`Add ${service.name}${service.price === null ? '' : ` for ${formatPrice(service.price)}`}`}
+							aria-label={`Buy now: ${service.name}${service.price === null ? '' : ` for ${formatPrice(service.price)}`}`}
 						>
-							Add service
+							Buy now
 						</button>
 					</div>
 				</article>
@@ -1237,21 +1238,6 @@ export default function App() {
 						<span aria-hidden="true" className="mx-2 text-slate-600">/</span>
 						<span>Products &amp; Services</span>
 					</p>
-					<p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-						<span>{user ? `Welcome, ${user.user_metadata.full_name || user.email || 'customer'}` : 'Welcome, Guest'}</span>
-						<button
-							className="font-semibold text-sky-300 hover:text-white"
-							type="button"
-							onClick={() => { setGuestCheckout(false); setAccountNotice(''); setAccountOpen(true); }}
-						>
-							{user ? 'My Account' : 'Sign In'}
-						</button>
-						{!user && (
-							<button className="font-semibold text-emerald-300 hover:text-emerald-200" type="button" onClick={continueAsGuest}>
-								Checkout as Guest
-							</button>
-						)}
-					</p>
 				</div>
 				<div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Popular service filters">
 					{['Google Pixel', 'FMI OFF for iPad WiFi', 'AT&T', 'T-Mobile — PRO', 'Mexico Nextel', 'iCloud'].map((tag) => (
@@ -1270,14 +1256,9 @@ export default function App() {
 						</button>
 					))}
 				</div>
-				<section className="py-12 sm:py-16" aria-labelledby="page-title">
-					<p className="mb-4 text-xs font-bold tracking-[.2em] text-sky-400">YOUR LOCAL MOBILE SPECIALISTS</p>
-					<h1 className="max-w-3xl text-5xl font-extrabold leading-[.98] sm:text-7xl" id="page-title">
-						Devices and repairs,<br /><span className="text-sky-400">made simple.</span>
-					</h1>
-					<p className="mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
-						Choose a device or a repair service, then send your request straight to our team.
-					</p>
+				<section className="py-6 sm:py-8" aria-labelledby="page-title">
+					<h1 className="sr-only" id="page-title">Your local mobile specialists</h1>
+					<ServiceShowcase onOrder={(target) => chooseStoreCategory({ label: '', orderType: target })} />
 				</section>
 
 				<form onSubmit={handleWhatsAppCheckout}>
@@ -1463,7 +1444,7 @@ export default function App() {
 																disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}
 																onClick={() => addWholesaleService(service)}
 															>
-																Buy
+																Buy now
 															</button>
 														)}
 													</div>
@@ -1514,7 +1495,7 @@ export default function App() {
 																disabled={!validGiftCardEmail}
 																onClick={() => addGiftCard(product)}
 															>
-																Buy
+																Buy now
 															</button>
 														</div>
 													))}
@@ -1561,7 +1542,7 @@ export default function App() {
 														disabled={!valid}
 														onClick={() => addIcloudService(product)}
 													>
-														Buy
+														Buy now
 													</button>
 												</div>
 											</div>
@@ -1578,7 +1559,6 @@ export default function App() {
 								filteredBrands.length ? (
 									<div className="space-y-7" aria-live="polite">
 										{filteredBrands.map((brand) => {
-											const isDropdownModelGroup = ['T-Mobile / Sprint / MetroPCS', 'AT&T', 'Verizon', 'iPad', 'Apple Watch', 'Samsung', 'Tecno', 'Xiaomi'].includes(brand.name);
 											const deviceRows = (
 												<div className="divide-y divide-blue-300/10">
 													{brand.devices.map((device) => (
@@ -1593,9 +1573,9 @@ export default function App() {
 																className="row-span-2 min-h-9 shrink-0 rounded-lg border border-sky-800 bg-[#092342] px-3 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] sm:px-4 sm:text-sm"
 																type="button"
 																onClick={() => addDevice(brand.name, device)}
-																aria-label={`Add ${brand.name} ${device.name}${device.price === null ? '' : ` for ${formatPrice(device.price)}`}`}
+																aria-label={`Buy now: ${brand.name} ${device.name}${device.price === null ? '' : ` for ${formatPrice(device.price)}`}`}
 															>
-																+ Add to cart
+																Buy now
 															</button>
 															<label className="col-span-2 grid gap-1 text-[11px] font-medium text-slate-400">
 																IMEI / Serial number
@@ -1615,23 +1595,13 @@ export default function App() {
 
 											return (
 												<div key={brand.name}>
-													{isDropdownModelGroup ? (
-														<details className="group" open={normalizedQuery.length > 0}>
-															<summary className="mb-2 flex cursor-pointer items-center justify-between border-b border-blue-300/15 pb-2 text-lg font-bold marker:text-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400">
-																<span>{brand.name}</span>
-																<span className="text-xs font-normal text-slate-500">{brand.devices.length} models</span>
-															</summary>
-															{deviceRows}
-														</details>
-													) : (
-														<>
-															<div className="mb-2 flex items-center justify-between border-b border-blue-300/15 pb-2">
-																<h3 className="text-lg font-bold">{brand.name}</h3>
-																<span className="text-xs text-slate-500">{brand.devices.length} models</span>
-															</div>
-															{deviceRows}
-														</>
-													)}
+													<details className="group" open={normalizedQuery.length > 0}>
+														<summary className="mb-2 flex cursor-pointer items-center justify-between border-b border-blue-300/15 pb-2 text-lg font-bold marker:text-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400">
+															<span>{brand.name}</span>
+															<span className="text-xs font-normal text-slate-500">{brand.devices.length} models</span>
+														</summary>
+														{deviceRows}
+													</details>
 												</div>
 											);
 										})}
@@ -1697,7 +1667,7 @@ export default function App() {
 															disabled={!jdmModel || !validJdmImei}
 															onClick={addJdmFrp}
 														>
-															Buy
+															Buy now
 														</button>
 													</div>
 												</div>
@@ -1742,7 +1712,7 @@ export default function App() {
 															disabled={!samsungUltraModel || !validSamsungUltraImei}
 															onClick={addSamsungUltraFrp}
 														>
-															Buy
+															Buy now
 														</button>
 													</div>
 												</div>
@@ -1776,7 +1746,7 @@ export default function App() {
 															disabled={!validSamsungUsaImei}
 															onClick={addSamsungUsaAndroid16Frp}
 														>
-															Buy
+															Buy now
 														</button>
 													</div>
 												</div>
@@ -2047,7 +2017,7 @@ export default function App() {
 														disabled={!canAdd}
 														onClick={() => addServerCredit(service)}
 													>
-														Add to cart
+														Buy now
 													</button>
 												</div>}
 											</ServiceCard>
