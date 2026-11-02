@@ -188,6 +188,16 @@ export const wholesaleServices: WholesaleService[] = [
 		status: 'EXPRESS',
 		description: 'Latin American carrier unlock solution for smartphones.',
 	},
+	...['Apple', 'Samsung', 'Google', 'Xiaomi', 'Tecno', 'Other Brands'].map((brand): WholesaleService => ({
+		id: `generic-imei-checker-${brand.toLowerCase().replace(/\s+/g, '-')}`,
+		title: `Generic IMEI Checker — ${brand}`,
+		tags: ['IMEI Check', 'Generic IMEI Checkers', brand],
+		category: 'Generic IMEI Checkers',
+		price: 1,
+		time: 'Instant',
+		status: 'INSTANT',
+		description: `IMEI check for ${brand === 'Other Brands' ? 'all other brands and models' : `all ${brand} models`}. Enter the IMEI in the box before ordering.`,
+	})),
 ];
 
 export const wholesaleTags = Array.from(new Set(wholesaleServices.flatMap((service) => service.tags)));

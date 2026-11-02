@@ -174,6 +174,10 @@ const deviceBrands: DeviceBrand[] = [
 			{ id: 'att-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
 			{ id: 'att-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
 			{ id: 'att-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
+			...[
+				['s10', 'Galaxy S10'], ['s10-plus', 'Galaxy S10+'], ['s20', 'Galaxy S20'], ['s20-plus', 'Galaxy S20+'], ['s20-ultra', 'Galaxy S20 Ultra'],
+				['s21', 'Galaxy S21'], ['s21-plus', 'Galaxy S21+'], ['s21-ultra', 'Galaxy S21 Ultra'], ['s22', 'Galaxy S22'], ['s22-plus', 'Galaxy S22+'], ['s22-ultra', 'Galaxy S22 Ultra'],
+			].map(([slug, model]): Device => ({ id: `att-nck-samsung-${slug}`, name: `${model} NCK Unlock`, price: 40 })),
 		],
 	},
 	{
