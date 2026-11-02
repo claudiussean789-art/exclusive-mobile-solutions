@@ -16,10 +16,12 @@ import {
 	samsungUsaAndroid16FrpId,
 	samsungUsaAndroid16FrpName,
 	samsungUsaAndroid16FrpPrice,
+	icloudServiceProducts,
 } from './data/jdmFrp';
 import { highlightedWholesaleTags, wholesaleServices, wholesaleTags } from './data/wholesaleServices';
+import { giftCardBrands, giftCardProducts, type GiftCardProduct } from './data/giftCards';
 
-type OrderType = 'devices' | 'repairs' | 'wholesale' | 'credits';
+type OrderType = 'devices' | 'repairs' | 'wholesale' | 'credits' | 'icloud' | 'giftcards';
 type CartKind = OrderType | 'credits';
 type PaymentMethod = 'local' | 'payoneer' | 'wipay' | 'paypal' | 'wallet' | 'crypto';
 type LocalRail = 'lynk';
@@ -29,7 +31,9 @@ const storeCategories: { label: string; orderType: OrderType }[] = [
 	{ label: 'Server Credits', orderType: 'credits' },
 	{ label: 'Network Unlocking', orderType: 'devices' },
 	{ label: 'FRP Services', orderType: 'repairs' },
+	{ label: 'iCloud Remove', orderType: 'icloud' },
 	{ label: 'Wholesale Services', orderType: 'wholesale' },
+	{ label: 'Digital Gift Cards', orderType: 'giftcards' },
 ];
 
 type Device = {
@@ -391,6 +395,32 @@ export default function App() {
 		}]);
 		setSamsungUsaImei('');
 	};
+	const [giftCardEmail, setGiftCardEmail] = useState('');
+	const validGiftCardEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(giftCardEmail.trim());
+	const addGiftCard = (product: GiftCardProduct) => {
+		if (!validGiftCardEmail) return;
+		setCart((current) => [...current, {
+			id: product.id,
+			name: product.name,
+			kind: 'credits',
+			price: product.price,
+			identifier: giftCardEmail.trim(),
+		}]);
+	};
+	const [icloudIdentifiers, setIcloudIdentifiers] = useState<Record<string, string>>({});
+	const isValidIcloudIdentifier = (value: string) => /^[A-Za-z0-9]{10,15}$/.test(value.trim());
+	const addIcloudService = (product: (typeof icloudServiceProducts)[number]) => {
+		const identifier = (icloudIdentifiers[product.id] ?? '').trim();
+		if (!isValidIcloudIdentifier(identifier)) return;
+		setCart((current) => [...current, {
+			id: product.id,
+			name: product.name,
+			kind: 'repairs',
+			price: product.price,
+			identifier: identifier.toUpperCase(),
+		}]);
+		setIcloudIdentifiers((current) => ({ ...current, [product.id]: '' }));
+	};
 	const addJdmFrp = () => {
 		if (!jdmModel || !validJdmImei) return;
 		setCart((current) => [...current, {
@@ -623,9 +653,12 @@ export default function App() {
 		`${service.name} ${service.category}`.toLocaleLowerCase().includes(normalizedQuery),
 
 	);
-	const frpSectionCategories = ['Samsung FRP', 'iCloud Remove'];
+	const frpSectionCategories = ['Samsung FRP'];
 	const filteredSamsungFrpServices = filteredServices.filter((service) => frpSectionCategories.includes(service.category));
-	const filteredOtherServices = filteredServices.filter((service) => !frpSectionCategories.includes(service.category));
+	const filteredIcloudServices = filteredServices.filter((service) => service.category === 'iCloud Remove');
+	const visibleGiftCards = giftCardProducts.filter((product) => !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => `${product.name} gift card digital email`.toLowerCase().includes(term)));
+	const visibleIcloudProducts = icloudServiceProducts.filter((product) => !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => product.search.includes(term)));
+	const filteredOtherServices = filteredServices.filter((service) => !frpSectionCategories.includes(service.category) && service.category !== 'iCloud Remove');
 	const samsungFrpSearchText = 'samsung usa android 16 may 2026 security patch jdm frp imei galaxy a02 galaxy a03 galaxy a04 galaxy s22 ultra galaxy s23 ultra galaxy s24 ultra galaxy s25 ultra galaxy s26 ultra';
 	const showSamsungFrpSpecials = !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => samsungFrpSearchText.includes(term));
 	const filteredWholesaleServices = wholesaleServices.filter((service) => {
@@ -684,13 +717,19 @@ export default function App() {
 		}]);
 
 	const [expandedWholesaleId, setExpandedWholesaleId] = useState<string | null>(null);
-	const addWholesaleService = (service: (typeof wholesaleServices)[number]) =>
+	const [wholesaleIdentifiers, setWholesaleIdentifiers] = useState<Record<string, string>>({});
+	const addWholesaleService = (service: (typeof wholesaleServices)[number]) => {
+		const identifier = (wholesaleIdentifiers[service.id] ?? '').trim();
+		if (!isValidIcloudIdentifier(identifier)) return;
 		setCart((current) => [...current, {
 			id: service.id,
 			name: service.title,
 			kind: 'wholesale',
 			price: service.price,
+			identifier: identifier.toUpperCase(),
 		}]);
+		setWholesaleIdentifiers((current) => ({ ...current, [service.id]: '' }));
+	};
 
 	const renderRepairServices = (services: RepairService[]) => (
 		<div className="divide-y divide-blue-300/10">
@@ -972,13 +1011,13 @@ export default function App() {
 			);
 		}
 		if (repairs.length) {
-			messageLines.push('', 'Repair services:', ...repairs.map((item) => `- ${item.name} (${item.price === null ? 'price to be confirmed' : `${formatPrice(item.price)} USD`})`));
+			messageLines.push('', 'Repair services:', ...repairs.map((item) => `- ${item.name} (${item.price === null ? 'price to be confirmed' : `${formatPrice(item.price)} USD`})${item.identifier ? ` — IMEI / Serial: ${item.identifier}` : ''}`));
 		}
 		if (credits.length) {
 			messageLines.push(
 				'',
 				'Server Credits for Box/Dongle:',
-				...credits.map((item) => `- ${item.name} (${item.price === null ? 'price to be confirmed' : `${formatPrice(item.price)} USD`})${item.identifier ? ` — Account details: ${item.identifier}` : ''}`),
+				...credits.map((item) => `- ${item.name} (${item.price === null ? 'price to be confirmed' : `${formatPrice(item.price)} USD`})${item.identifier ? ` — ${item.id.startsWith('giftcard-') ? 'Deliver code to email' : 'Account details'}: ${item.identifier}` : ''}`),
 			);
 			if (hasUnpricedCredits) messageLines.push('Pricing and payment for unpriced server credit services will be confirmed by the team.');
 		}
@@ -986,7 +1025,7 @@ export default function App() {
 			messageLines.push(
 				'',
 				'Wholesale services:',
-				...wholesale.map((item) => `- ${item.name} (${formatPrice(item.price ?? 0)} USD)`),
+				...wholesale.map((item) => `- ${item.name} (${formatPrice(item.price ?? 0)} USD)${item.identifier ? ` — IMEI / Serial: ${item.identifier}` : ''}`),
 			);
 		}
 		if (repairs.length) messageLines.push('', 'Appointment schedule: Monday–Saturday. Sunday emergency appointments only, 11:00 PM–3:00 AM.');
@@ -1242,16 +1281,16 @@ export default function App() {
 				</section>
 
 				<form onSubmit={handleWhatsAppCheckout}>
-					<div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
+					<div className={`grid items-start gap-8 ${cart.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_350px]' : ''}`}>
 						<section aria-labelledby="catalog-title">
 							<div className={`mb-5 flex items-end justify-between gap-4 ${orderType === 'credits' ? 'hidden' : ''}`}>
 								<div>
-									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : 'WHOLESALE CATALOG'}</p>
+									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : orderType === 'icloud' ? 'ICLOUD' : orderType === 'giftcards' ? 'DIGITAL GIFT CARDS' : 'WHOLESALE CATALOG'}</p>
 									<h2 className="text-3xl font-bold leading-tight sm:text-4xl" id="catalog-title">
-										{orderType === 'devices' ? 'Find your next phone' : orderType === 'repairs' ? 'What can we fix?' : 'Products & services'}
+										{orderType === 'devices' ? 'Find your next phone' : orderType === 'repairs' ? 'What can we fix?' : orderType === 'icloud' ? 'iCloud Remove' : orderType === 'giftcards' ? 'Digital gift cards by email' : 'Products & services'}
 									</h2>
 								</div>
-								<span className="hidden text-sm text-slate-500 sm:block">{orderType === 'devices' ? 'Browse by brand' : orderType === 'repairs' ? `${filteredServices.length} services` : `${filteredWholesaleServices.length} services`}</span>
+								<span className="hidden text-sm text-slate-500 sm:block">{orderType === 'devices' ? 'Browse by brand' : orderType === 'repairs' ? `${filteredServices.length - filteredIcloudServices.length} services` : orderType === 'icloud' ? `${filteredIcloudServices.length} services` : orderType === 'giftcards' ? `${visibleGiftCards.length} cards` : `${filteredWholesaleServices.length} services`}</span>
 							</div>
 							{orderType === 'repairs' && (
 								<div className="mb-4 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs leading-5 text-sky-100">
@@ -1266,8 +1305,8 @@ export default function App() {
 									type="search"
 									value={orderType === 'wholesale' ? wholesaleSearch : searchQuery}
 									onChange={(event) => orderType === 'wholesale' ? setWholesaleSearch(event.target.value) : setSearchQuery(event.target.value)}
-									placeholder={orderType === 'devices' ? 'Search all brands and models...' : orderType === 'repairs' ? 'Search repair services...' : 'Search services, carriers or device models...'}
-									aria-label={orderType === 'devices' ? 'Search device brands and models' : orderType === 'repairs' ? 'Search repair services' : 'Search wholesale services'}
+									placeholder={orderType === 'devices' ? 'Search all brands and models...' : orderType === 'repairs' ? 'Search repair services...' : orderType === 'icloud' ? 'Search iCloud services...' : orderType === 'giftcards' ? 'Search gift cards...' : 'Search services, carriers or device models...'}
+																		aria-label={orderType === 'devices' ? 'Search device brands and models' : orderType === 'repairs' ? 'Search repair services' : orderType === 'icloud' ? 'Search iCloud services' : orderType === 'giftcards' ? 'Search gift cards' : 'Search wholesale services'}
 								/>
 								{(orderType === 'wholesale' ? wholesaleSearch : searchQuery) && (
 									<button className="text-xs font-semibold text-sky-400 hover:text-white" type="button" onClick={() => orderType === 'wholesale' ? setWholesaleSearch('') : setSearchQuery('')}>
@@ -1388,6 +1427,19 @@ export default function App() {
 															<span className="rounded bg-white/5 px-1.5 py-1 text-[9px] text-slate-400" key={tag}>{tag}</span>
 														))}
 													</div>
+													<label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-300">
+														IMEI / Serial number <span className="text-red-300">Required</span>
+														<input
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-slate-600 focus:border-sky-400"
+															type="text"
+															maxLength={15}
+															autoComplete="off"
+															placeholder="IMEI or serial number"
+															value={wholesaleIdentifiers[service.id] ?? ''}
+															onChange={(event) => setWholesaleIdentifiers((current) => ({ ...current, [service.id]: event.target.value.replace(/[^A-Za-z0-9]/g, '') }))}
+														/>
+														{(wholesaleIdentifiers[service.id] ?? '').length > 0 && !isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '') && <span className="text-amber-200">Enter a 15-digit IMEI or a serial number (10–15 letters/digits).</span>}
+													</label>
 													<div className="mt-3 flex items-center justify-between gap-3">
 														<span className="text-xs font-semibold text-slate-300">
 															{service.requestOnly
@@ -1396,20 +1448,22 @@ export default function App() {
 														</span>
 														{service.requestOnly ? (
 															<a
-																className="inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10"
-																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request a Google Pixel information check. Listed price: $${service.price.toFixed(4)} per check.`)}`}
+																className={`inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10 ${isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '') ? '' : 'pointer-events-none opacity-50'}`}
+																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request a Google Pixel information check. Listed price: $${service.price.toFixed(4)} per check. IMEI / Serial: ${(wholesaleIdentifiers[service.id] ?? '').trim().toUpperCase()}`)}`}
 																target="_blank"
 																rel="noopener noreferrer"
+																aria-disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}
 															>
 																Request check
 															</a>
 														) : (
 															<button
-																className="min-h-9 rounded-lg bg-sky-500 px-3 text-xs font-bold text-[#03142a] transition hover:bg-sky-300"
+																className="min-h-9 rounded-lg bg-sky-500 px-3 text-xs font-bold text-[#03142a] transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
 																type="button"
+																disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}
 																onClick={() => addWholesaleService(service)}
 															>
-																Add to cart
+																Buy
 															</button>
 														)}
 													</div>
@@ -1422,6 +1476,102 @@ export default function App() {
 											<p className="text-sm font-semibold text-slate-200">No matching models or services found</p>
 											<p className="mt-1 text-xs text-slate-400">Try another search or reset your filters.</p>
 										</div>
+									)}
+								</div>
+							) : orderType === 'giftcards' ? (
+								<div className="space-y-5" aria-live="polite">
+									<div className="grid gap-2 rounded-xl border border-[#243f70] bg-[#07142e] p-4">
+										<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+											Delivery email <span className="text-red-300">Required</span>
+											<input
+												className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+												type="email"
+												autoComplete="email"
+												placeholder="Email address to receive your gift card code"
+												value={giftCardEmail}
+												onChange={(event) => setGiftCardEmail(event.target.value)}
+											/>
+											{giftCardEmail.length > 0 && !validGiftCardEmail && <span className="text-amber-200">Enter a valid email address.</span>}
+										</label>
+										<p className="text-xs text-slate-400">Digital codes are delivered by email after payment is confirmed. Double-check your email address: codes can't be resent to a different address.</p>
+									</div>
+									{giftCardBrands.map((brand) => {
+										const products = visibleGiftCards.filter((product) => product.brand === brand.name);
+										if (!products.length) return null;
+										return (
+											<section className="space-y-2" key={brand.id} aria-label={brand.name}>
+												<h3 className="border-b border-blue-300/15 pb-2 text-base font-bold">{brand.name}</h3>
+												<div className="grid gap-2 sm:grid-cols-2">
+													{products.map((product) => (
+														<div className="flex items-center justify-between gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-3" key={product.id}>
+															<div>
+																<p className="text-sm font-semibold text-slate-100">${product.value} gift card</p>
+																<strong className="text-sm text-sky-300">{formatPrice(product.price)} USD</strong>
+															</div>
+															<button
+																className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
+																type="button"
+																disabled={!validGiftCardEmail}
+																onClick={() => addGiftCard(product)}
+															>
+																Buy
+															</button>
+														</div>
+													))}
+												</div>
+											</section>
+										);
+									})}
+									{visibleGiftCards.length === 0 && (
+										<p className="rounded-xl border border-blue-300/15 bg-[#091835] p-6 text-center text-sm text-slate-400" role="status">
+											No gift cards match “{searchQuery}”.
+										</p>
+									)}
+								</div>
+							) : orderType === 'icloud' ? (
+								<div className="space-y-3" aria-live="polite">
+									{visibleIcloudProducts.map((product) => {
+										const identifier = icloudIdentifiers[product.id] ?? '';
+										const valid = isValidIcloudIdentifier(identifier);
+										return (
+											<div className="grid gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-4" key={product.id}>
+												<div>
+													<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">iCloud Remove</p>
+													<h4 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">{product.title}</h4>
+													<p className="mt-1 text-xs text-slate-400">{product.detail}</p>
+												</div>
+												<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+													IMEI / Serial number <span className="text-red-300">Required</span>
+													<input
+														className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-slate-600 focus:border-sky-400"
+														type="text"
+														maxLength={15}
+														autoComplete="off"
+														placeholder="IMEI or serial number"
+														value={identifier}
+														onChange={(event) => setIcloudIdentifiers((current) => ({ ...current, [product.id]: event.target.value.replace(/[^A-Za-z0-9]/g, '') }))}
+													/>
+													{identifier.length > 0 && !valid && <span className="text-amber-200">Enter a 15-digit IMEI or a serial number (10–15 letters/digits).</span>}
+												</label>
+												<div className="flex items-center justify-between gap-3">
+													<strong className="text-lg text-sky-300">{formatPrice(product.price)} USD</strong>
+													<button
+														className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
+														type="button"
+														disabled={!valid}
+														onClick={() => addIcloudService(product)}
+													>
+														Buy
+													</button>
+												</div>
+											</div>
+										);
+									})}
+									{renderRepairServices(filteredIcloudServices)}
+									{visibleIcloudProducts.length === 0 && filteredIcloudServices.length === 0 && (
+										<p className="rounded-xl border border-blue-300/15 bg-[#091835] p-6 text-center text-sm text-slate-400" role="status">
+											No iCloud services match “{searchQuery}”.
+										</p>
 									)}
 								</div>
 							) : orderType === 'devices' ? (
@@ -1497,7 +1647,7 @@ export default function App() {
 										<section aria-labelledby="samsung-frp-title" className="space-y-2">
 											<div className="border-b border-blue-300/15 pb-2">
 												<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Dedicated</p>
-												<h3 className="text-base font-bold" id="samsung-frp-title">Samsung FRP &amp; iCloud</h3>
+												<h3 className="text-base font-bold" id="samsung-frp-title">Samsung FRP</h3>
 											</div>
 											{renderRepairServices(filteredSamsungFrpServices)}
 											{(!normalizedQuery || 'samsung jdm frp imei'.includes(normalizedQuery)) && (
@@ -1547,7 +1697,7 @@ export default function App() {
 															disabled={!jdmModel || !validJdmImei}
 															onClick={addJdmFrp}
 														>
-															Add service
+															Buy
 														</button>
 													</div>
 												</div>
@@ -1592,7 +1742,7 @@ export default function App() {
 															disabled={!samsungUltraModel || !validSamsungUltraImei}
 															onClick={addSamsungUltraFrp}
 														>
-															Add service
+															Buy
 														</button>
 													</div>
 												</div>
@@ -1626,7 +1776,7 @@ export default function App() {
 															disabled={!validSamsungUsaImei}
 															onClick={addSamsungUsaAndroid16Frp}
 														>
-															Add service
+															Buy
 														</button>
 													</div>
 												</div>
@@ -1907,7 +2057,7 @@ export default function App() {
 							</section>}
 						</section>
 
-						<aside id="checkout-summary" className="rounded-2xl border border-[#243f70] bg-[#091835] p-5 shadow-xl lg:sticky lg:top-24" aria-labelledby="summary-title">
+						{cart.length > 0 && <aside id="checkout-summary" className="rounded-2xl border border-[#243f70] bg-[#091835] p-5 shadow-xl lg:sticky lg:top-24" aria-labelledby="summary-title">
 							<details className="group" open>
 								<summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 [&::-webkit-details-marker]:hidden">
 								<div>
@@ -1936,7 +2086,7 @@ export default function App() {
 											<div className="min-w-0">
 												<p className="break-words text-sm text-slate-200">{item.name}</p>
 												<p className="mt-1 text-xs text-slate-500">{item.price === null ? 'Contact for price' : `${formatPrice(item.price)} USD`}</p>
-												{item.identifier && <p className="mt-1 break-all text-xs text-slate-500">{item.kind === 'credits' ? 'Account details: ' : 'IMEI / Serial: '}{item.identifier}</p>}
+												{item.identifier && <p className="mt-1 break-all text-xs text-slate-500">{item.kind === 'credits' ? (item.id.startsWith('giftcard-') ? 'Delivery email: ' : 'Account details: ') : 'IMEI / Serial: '}{item.identifier}</p>}
 											</div>
 											<button
 												className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[#294572] text-slate-400 transition hover:border-red-400 hover:text-red-300"
@@ -2274,7 +2424,7 @@ export default function App() {
 							</p>
 								</div>
 							</details>
-						</aside>
+						</aside>}
 					</div>
 				</form>
 
