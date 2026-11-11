@@ -66,18 +66,37 @@ Do not share the admin token with customers or put it in browser code. A manual 
 
 Wallet purchases are checked and charged atomically on the server against `wallet_catalog_prices`; client-submitted totals are ignored. Devices, repairs, wholesale services, and server-credit packages can be paid from the wallet when they have an active matching server price. Items whose price is not set in the database cannot be purchased with wallet credit. Box/Dongle credit amounts without confirmed prices remain request-only until prices are agreed and added to the catalog table. The same applies to any contact-for-price item.
 
-PayPal wallet top-ups and priced catalog orders use PayPal checkout. Crypto is available for priced orders and remains pending until an administrator verifies the transaction. Local, Payoneer, WiPay, and any unpriced product/service requests continue through the order request flow unless separately configured for payment.
+PayPal wallet top-ups and priced catalog orders use PayPal checkout. Crypto is available for priced orders and remains pending until an administrator verifies the transaction. Local and WiPay requests continue through the existing order request flow.
+
+## Payoneer manual approval and Telegram
+
+The Payoneer workflow uses `payoneer_orders` and does not create invoices through Payoneer. For wallet top-ups, customers can enter the name for the request; the payment link is sent to their account email. Apply all migrations, including `20261105210000_payoneer_wallet_topups.sql` and `20261106070000_payoneer_requests.sql`, before deploying the Vercel application. The new table has RLS: authenticated customers can read only their own requests; guests cannot read requests from the database. The server alone can create or change them.
+
+Configure these **server-side Vercel** environment variables (never use a `VITE_` prefix):
+
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+- `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (the chat receiving notifications)
+- `TELEGRAM_ADMIN_USER_ID` (the numeric Telegram user ID allowed to act in that chat)
+- `TELEGRAM_WEBHOOK_SECRET` (a long random secret using letters, digits, `_`, or `-`; at most 256 characters)
+- `RESEND_API_KEY` and `RESEND_FROM` (a verified Resend sender)
+
+The existing Payoneer API checkout and webhook secrets are unrelated to this manual-link flow. Never put bot, service-role, or email credentials in frontend environment variables. If an old `VITE_TELEGRAM_BOT_TOKEN` was deployed, rotate that bot token and update the server secret. After applying the migration, redeploy the `create-payoneer-order-checkout` and `create-payoneer-topup-checkout` Supabase Edge Functions; their guards prevent a manual request from bypassing the approval flow via the legacy API checkout endpoints.
+
+After confirming no existing handler needs to be preserved, deploy the app and configure the existing Telegram bot's webhook to `https://YOUR_SITE/api/telegram-webhook` with `secret_token` set to the same `TELEGRAM_WEBHOOK_SECRET`. Telegram permits only one webhook per bot; registration replaces the old webhook. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` in a trusted local shell without printing them, then:
+
+```powershell
+$body = @{ url = 'https://YOUR_SITE/api/telegram-webhook'; secret_token = $env:TELEGRAM_WEBHOOK_SECRET } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri ("https://api.telegram.org/bot{0}/setWebhook" -f $env:TELEGRAM_BOT_TOKEN) -ContentType 'application/json' -Body $body
+```
+
+Test with a small order and a controlled customer email. The bot sends Approve/Reject buttons to the configured chat. If an initial alert fails, use `/pending` to list the oldest ten requests pending approval; `/status ORDER_UUID` retrieves a request and its current action buttons. For an order with an unpriced item, approve and send `/amount ORDER_UUID 25.00` after independently confirming the entire order price. Choose Visa / debit card or bank transfer, create the corresponding Payoneer link manually, and reply to the bot's prompt with the link. Alternatively, submit `/link ORDER_UUID https://PAYONEER_LINK`; use `/status ORDER_UUID` to recover an interrupted request. Check the customer, amount, payment type, and URL before pressing Confirm and send email. Only HTTPS URLs on `payoneer.com`, `payoneer.me`, or their subdomains are accepted.
+
+The customer and administrator see pending payment; emailing a link never marks payment as paid or credits the wallet. Manually created links are **not** connected to the existing API-session payment verification webhook. Keep them pending until a separately verified payment integration is available. The Payoneer table records `email_status` and the Resend message ID. `sent` means Resend accepted the message, not that it was delivered. If the status is `failed`, `sending`, or `uncertain`, investigate Resend before taking further action; automatic retries are deliberately blocked to avoid duplicate emails.
+
+When Resend rejects an email, the bot reports a sanitized category where possible (for example, an invalid API key or sender). It does not expose the provider's raw error message, which could contain private information. Older failed requests may have only the HTTP status recorded.
 
 ## Crypto checkout and manual verification
 
 Edit `src/data/cryptoPayment.ts` to set the public USDT TRC20 receiving address, Binance Pay ID, and a QR image path under `public/`. The file currently contains placeholders, so replace them before accepting crypto transfers. Customers must sign in, submit a transaction ID, and have a confirmed price for every selected item. The `submit_crypto_order` RPC saves the server-priced order as `pending_verification`; a submitted TXID is only a customer claim and does not verify payment or add wallet credit.
 
-Review `wallet_orders` in the Supabase dashboard for `payment_method = crypto` and `status = pending_verification`. Independently verify the transaction in Binance Pay or on the correct chain before changing the row's status to `paid`. Only project administrators should make this change. Telegram notifications do not verify crypto payments.
-
-## Telegram customer support bot
-
-Telegram handling runs as Vercel Edge Functions so it can use the project's Vercel environment variables. The customer bot replies to private messages using OpenAI. It does not access accounts, confirm payments, or guarantee eligibility or timing; uncertain and account-specific questions are directed to support. Customer message text is sent to OpenAI and is not retained by this app.
-
-In Vercel Project Settings → Environment Variables, set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, and `OPENAI_API_KEY`. The alert endpoint also uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, which should already be configured for the app. Never prefix Telegram or OpenAI secrets with `VITE_`; rotate any key that has been exposed.
-
-After deploying the project, register the Telegram webhook to `https://exclusive-mobile-solutions.vercel.app/api/telegram-webhook`. Use the same `TELEGRAM_WEBHOOK_SECRET` value in the Telegram `setWebhook` request so Telegram sends it in the verification header. Test by sending `/start` and then a service question to the bot.
+Review `wallet_orders` in the Supabase dashboard for `payment_method = crypto` and `status = pending_verification`. Independently verify the transaction in Binance Pay or on the correct chain before changing the row's status to `paid`. Only project administrators should make this change. No Telegram bot notification or payment-verification integration is configured.

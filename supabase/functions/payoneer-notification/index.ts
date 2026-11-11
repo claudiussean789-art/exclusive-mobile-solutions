@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { sendOrderPaidEmail } from '../_shared/order-email.ts';
 
 const ok = () => new Response('ok', { status: 200 });
 
@@ -31,31 +32,66 @@ Deno.serve(async (request) => {
     if (typeof orderId !== 'string') return ok();
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+    const { data: topup, error: topupError } = await admin.from('wallet_topups')
+      .select('id,user_id,amount,currency,method,status,payoneer_list_id')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (topupError) throw topupError;
+    if (topup?.method === 'payoneer') {
+      if (topup.status === 'completed') return ok();
+      if (topup.status === 'pending' && !topup.payoneer_list_id) {
+        return new Response('Checkout session is still being recorded.', { status: 503 });
+      }
+      if (topup.status !== 'pending'
+        || typeof listId !== 'string'
+        || topup.payoneer_list_id !== listId
+        || !Number.isFinite(Number(amount))
+        || Number(amount).toFixed(2) !== Number(topup.amount).toFixed(2)
+        || currency !== topup.currency) {
+        console.error('payoneer-notification top-up mismatch for transaction', orderId);
+        return ok();
+      }
+
+      const { error: creditError } = await admin.rpc('complete_wallet_topup', {
+        p_topup_id: topup.id,
+        p_payment_reference: `payoneer:${topup.payoneer_list_id}`,
+      });
+      if (creditError) throw creditError;
+      return ok();
+    }
+
     const { data: order, error: orderError } = await admin.from('wallet_orders')
-      .select('id,total,currency,payment_method,status,payoneer_list_id')
+      .select('id,total,currency,payment_method,status,payoneer_list_id,items,customer')
       .eq('id', orderId)
       .maybeSingle();
     if (orderError) throw orderError;
     if (!order || order.payment_method !== 'payoneer' || order.status === 'paid') return ok();
+    if (order.status === 'pending' && !order.payoneer_list_id) {
+      return new Response('Checkout session is still being recorded.', { status: 503 });
+    }
 
     if (order.status !== 'pending'
       || order.total === null
-      || (typeof listId === 'string' && order.payoneer_list_id !== listId)
+      || typeof listId !== 'string'
+      || order.payoneer_list_id !== listId
       || Number(amount).toFixed(2) !== Number(order.total).toFixed(2)
       || currency !== order.currency) {
       console.error('payoneer-notification mismatch for order', orderId);
       return ok();
     }
 
-    const { error: updateError } = await admin.from('wallet_orders')
+    const { data: updated, error: updateError } = await admin.from('wallet_orders')
       .update({
         status: 'paid',
         payment_reference: `payoneer:${order.payoneer_list_id}`,
         paid_at: new Date().toISOString(),
       })
       .eq('id', order.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
     if (updateError) throw updateError;
+    if (updated) await sendOrderPaidEmail(order);
     return ok();
   } catch (error) {
     console.error('payoneer-notification failed:', error);

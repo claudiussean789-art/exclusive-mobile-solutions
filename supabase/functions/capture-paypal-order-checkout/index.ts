@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { sendOrderPaidEmail } from '../_shared/order-email.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? 'null',
@@ -37,7 +38,7 @@ Deno.serve(async (request) => {
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
     const { data: order, error: orderError } = await admin.from('wallet_orders')
-      .select('id,user_id,total,currency,payment_method,status,paypal_order_id,payment_reference')
+      .select('id,user_id,total,currency,payment_method,status,paypal_order_id,payment_reference,items,customer')
       .eq('id', body.orderId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -105,6 +106,7 @@ Deno.serve(async (request) => {
         return json({ error: 'Payment was captured but the order could not be marked as paid. Contact support with your PayPal receipt.' }, 409);
       }
     }
+    if (updatedOrder) await sendOrderPaidEmail(order);
     return json({ status: 'completed', orderId: order.id });
   } catch (error) {
     console.error('capture-paypal-order-checkout failed:', error);

@@ -1,6 +1,7 @@
 import { sendTelegramAlert } from '../utils/telegram';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { submitPayoneerRequest } from '../lib/payoneer';
 import {
 	getSupabase,
 	getWalletBalance,
@@ -29,6 +30,28 @@ const walletCurrency = (amount: number) =>
 const dateTime = (value: string) =>
 	new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const displayError = (error: unknown) => error instanceof Error ? error.message : 'The request could not be completed.';
+type OrderStats = {
+	successful_count: number;
+	successful_total: number;
+	in_progress_count: number;
+	in_progress_total: number;
+	failed_count: number;
+	failed_total: number;
+	total_count: number;
+};
+type PayoneerStatus = {
+	wallet_order_id: string | null;
+	wallet_topup_id: string | null;
+	status: 'Pending Approval' | 'Approved' | 'Awaiting Payment Link' | 'Link Sent' | 'Paid' | 'Rejected';
+};
+const orderStatusLabel = (order: WalletOrder) => {
+	if (order.fulfillment_status === 'completed') return 'Completed';
+	if (order.fulfillment_status === 'failed') return 'Failed';
+	if (order.status === 'cancelled') return 'Cancelled';
+	if (order.status === 'pending_verification') return 'Pending verification';
+	if (order.status === 'paid' || order.status === 'requested' || order.fulfillment_status === 'in_progress') return 'In process';
+	return 'Pending';
+};
 
 export default function AccountPanel({
 	user,
@@ -46,7 +69,7 @@ export default function AccountPanel({
 	const [password, setPassword] = useState('');
 	const [amount, setAmount] = useState('25');
 	const [selectedPreset, setSelectedPreset] = useState<number | null>(25);
-	const [stats, setStats] = useState({
+	const [, setStats] = useState<OrderStats>({
 		successful_count: 0,
 		successful_total: 0,
 		in_progress_count: 0,
@@ -55,18 +78,22 @@ export default function AccountPanel({
 		failed_total: 0,
 		total_count: 0,
 	});
-	const [topupMethod, setTopupMethod] = useState<'paypal' | 'manual' | 'lynk' | 'scotiabank' | 'payoneer' | 'crypto'>('paypal');
-	const [manualReference, setManualReference] = useState('');
-	const [manualReceipt, setManualReceipt] = useState<File | null>(null);
+	const [topupMethod, setTopupMethod] = useState<'paypal' | 'payoneer'>('paypal');
+	const [payoneerRail, setPayoneerRail] = useState<'card' | 'bank'>('card');
+	const [payoneerName, setPayoneerName] = useState<string | null>(null);
 	const [profile, setProfile] = useState<WalletProfile | null>(null);
 	const [topups, setTopups] = useState<WalletTopup[]>([]);
 	const [orders, setOrders] = useState<WalletOrder[]>([]);
+	const [payoneerStatuses, setPayoneerStatuses] = useState<PayoneerStatus[]>([]);
 	const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-	const [manualTopupUrl, setManualTopupUrl] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const [errorMessage, setErrorMessage] = useState('');
 	const [successMessage, setSuccessMessage] = useState('');
+
+	useEffect(() => {
+		setPayoneerName(null);
+	}, [user?.id]);
 
 	useEffect(() => {
 		if (!user || !isSupabaseConfigured) {
@@ -86,7 +113,7 @@ export default function AccountPanel({
 		void (async () => {
 			const { data, error } = await getSupabase().rpc('get_user_order_stats', { p_user_id: user.id });
 			if (error || !data || !active) return;
-			const row = (Array.isArray(data) ? data[0] : data) as typeof stats | undefined;
+			const row = (Array.isArray(data) ? data[0] : data) as OrderStats | undefined;
 			if (row) setStats(row);
 		})();
 
@@ -98,6 +125,7 @@ export default function AccountPanel({
 			setProfile(null);
 			setTopups([]);
 			setOrders([]);
+			setPayoneerStatuses([]);
 			setTransactions([]);
 			onBalanceChange(0);
 			return;
@@ -110,10 +138,11 @@ export default function AccountPanel({
 		void Promise.all([
 			client.from('profiles').select('id,email,full_name,username,phone,address,credit_balance').eq('id', user.id).single(),
 			client.from('wallet_topups').select('id,amount,currency,method,status,receipt_path,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
-			client.from('wallet_orders').select('id,items,total,currency,payment_method,status,payment_reference,crypto_txid,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+			client.from('wallet_orders').select('id,items,total,currency,payment_method,status,fulfillment_status,payment_reference,crypto_txid,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
 			client.from('wallet_transactions').select('id,amount,kind,description,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
-		]).then(([profileResult, topupResult, orderResult, transactionResult]) => {
-			const failure = profileResult.error ?? topupResult.error ?? orderResult.error ?? transactionResult.error;
+			client.from('payoneer_orders').select('wallet_order_id,wallet_topup_id,status').eq('user_id', user.id).order('created_at', { ascending: false }).limit(40),
+		]).then(([profileResult, topupResult, orderResult, transactionResult, payoneerResult]) => {
+			const failure = profileResult.error ?? topupResult.error ?? orderResult.error ?? transactionResult.error ?? payoneerResult.error;
 			if (failure) throw failure;
 			if (!active) return;
 			const nextProfile = profileResult.data as WalletProfile;
@@ -121,6 +150,7 @@ export default function AccountPanel({
 			setTopups(topupResult.data as WalletTopup[]);
 			setOrders(orderResult.data as WalletOrder[]);
 			setTransactions(transactionResult.data as WalletTransaction[]);
+			setPayoneerStatuses(payoneerResult.data as PayoneerStatus[]);
 			onBalanceChange(getWalletBalance(nextProfile));
 		}).catch((loadError: unknown) => {
 			if (active) setErrorMessage(displayError(loadError));
@@ -131,12 +161,18 @@ export default function AccountPanel({
 		return () => { active = false; };
 	}, [user, onBalanceChange]);
 
+	const handleGoogleSignIn = async () => {
+		const client = getSupabase();
+		setErrorMessage('');
+		const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+		if (error) setErrorMessage(error.message);
+	};
+
 	const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		setBusy(true);
 		setErrorMessage('');
 		setSuccessMessage('');
-		setManualTopupUrl('');
 		try {
 			const client = getSupabase();
 			if (authMode === 'signup') {
@@ -157,12 +193,16 @@ export default function AccountPanel({
 					},
 				});
 				if (error) throw error;
-				if (data.session) {
-					onUserChange(data.session.user);
-					await sendTelegramAlert({ type: 'registration' });
-				} else {
-					setSuccessMessage('Your account was created. Check your email for the confirmation link, then sign in using your email and password.');
-				}
+				if (data.session) onUserChange(data.session.user);
+				else setSuccessMessage('Your account was created. Check your email for the confirmation link, then sign in using your email and password.');
+
+				await sendTelegramAlert(
+					`<b>🔔 New Account Registration</b>\n\n` +
+					`<b>Email:</b> ${email.trim()}\n` +
+					`<b>Full Name:</b> ${fullName.trim() || 'N/A'}\n` +
+					`<b>Username:</b> ${normalizedUsername}\n` +
+					`<b>Portal:</b> Exclusive Mobile Solutions`
+				);
 			} else {
 				const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
 				if (error) throw error;
@@ -179,19 +219,21 @@ export default function AccountPanel({
 	const refreshWallet = async () => {
 		if (!user) return;
 		const client = getSupabase();
-		const [profileResult, topupResult, orderResult, transactionResult] = await Promise.all([
+		const [profileResult, topupResult, orderResult, transactionResult, payoneerResult] = await Promise.all([
 			client.from('profiles').select('id,email,full_name,username,phone,address,credit_balance').eq('id', user.id).single(),
 			client.from('wallet_topups').select('id,amount,currency,method,status,receipt_path,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
-			client.from('wallet_orders').select('id,items,total,currency,payment_method,status,payment_reference,crypto_txid,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+			client.from('wallet_orders').select('id,items,total,currency,payment_method,status,fulfillment_status,payment_reference,crypto_txid,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
 			client.from('wallet_transactions').select('id,amount,kind,description,created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
+			client.from('payoneer_orders').select('wallet_order_id,wallet_topup_id,status').eq('user_id', user.id).order('created_at', { ascending: false }).limit(40),
 		]);
-		const failure = profileResult.error ?? topupResult.error ?? orderResult.error ?? transactionResult.error;
+		const failure = profileResult.error ?? topupResult.error ?? orderResult.error ?? transactionResult.error ?? payoneerResult.error;
 		if (failure) throw failure;
 		const nextProfile = profileResult.data as WalletProfile;
 		setProfile(nextProfile);
 		setTopups(topupResult.data as WalletTopup[]);
 		setOrders(orderResult.data as WalletOrder[]);
 		setTransactions(transactionResult.data as WalletTransaction[]);
+		setPayoneerStatuses(payoneerResult.data as PayoneerStatus[]);
 		onBalanceChange(getWalletBalance(nextProfile));
 	};
 
@@ -205,20 +247,23 @@ export default function AccountPanel({
 			if (!Number.isFinite(value) || value < 1 || value > 10000 || Number(value.toFixed(2)) !== value) {
 				throw new Error('Enter an amount from $1.00 to $10,000.00, up to two decimal places.');
 			}
-			if (['manual', 'lynk', 'scotiabank', 'payoneer', 'crypto'].includes(topupMethod)) {
-				if (!manualReference.trim()) throw new Error('Enter the bank transfer reference.');
-				if (manualReference.trim().length < 3 || manualReference.trim().length > 200) throw new Error('The transfer reference must be 3–200 characters.');
-				if (!manualReceipt) throw new Error('Upload your bank transfer receipt.');
-				if (manualReceipt.size > 5 * 1024 * 1024) throw new Error('Receipt files must be 5 MB or smaller.');
-				if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(manualReceipt.type)) {
-					throw new Error('Upload a JPG, PNG, WEBP, or PDF receipt.');
-				}
-			}
-			const receiptFile = manualReceipt;
-			if (topupMethod === 'manual' && (!receiptFile || !user)) {
-				throw new Error('Sign in and select a receipt before submitting a manual top-up.');
-			}
 			const client = getSupabase();
+			if (topupMethod === 'payoneer') {
+				const customerName = (payoneerName ?? profile?.full_name ?? '').trim();
+				if (!customerName) throw new Error('Enter your name for the Payoneer request.');
+				if (!user?.email) throw new Error('Your account needs an email before requesting a Payoneer top-up.');
+				const request = await submitPayoneerRequest({
+					type: 'topup',
+					customerName,
+					customerEmail: user.email,
+					amount: value,
+					preference: payoneerRail,
+				});
+				setSuccessMessage(`Payoneer top-up ${request.id} is pending approval. No payment has been taken.`);
+				if (!request.notified) setErrorMessage(`Top-up ${request.id} was saved, but the administrator notification failed. Contact support with this reference; do not submit it again.`);
+				await refreshWallet();
+				return;
+			}
 			const { data: topup, error } = await client.rpc('request_wallet_topup', {
 				p_amount: value,
 				p_method: topupMethod,
@@ -228,48 +273,18 @@ export default function AccountPanel({
 			if (error) throw error;
 if (!topup) throw new Error('The top-up request was not created.');
 
-try {
-	await sendTelegramAlert({ type: 'topup', topupId: topup.id });
-} catch (tgErr) {
-  console.error("Telegram notification failed:", tgErr);
-}
-
-			if (topupMethod === 'paypal') {
-				const { data, error: paypalError } = await client.functions.invoke('create-paypal-order', {
-					body: { topupId: topup.id },
-				});
-				if (paypalError) throw paypalError;
-				if (typeof data?.approvalUrl !== 'string') throw new Error('PayPal did not return an approval link.');
-				window.location.assign(data.approvalUrl);
-				return;
-			}
-
-			if (!user || !receiptFile) throw new Error('Sign in and select a receipt before submitting a manual top-up.');
-			const extensionByType: Record<string, string> = {
-				'image/jpeg': 'jpg',
-				'image/png': 'png',
-				'image/webp': 'webp',
-				'application/pdf': 'pdf',
-			};
-			const receiptPath = `${user.id}/${topup.id}.${extensionByType[receiptFile.type]}`;
-			const { error: uploadError } = await client.storage.from('wallet-payment-receipts').upload(receiptPath, receiptFile, {
-				contentType: receiptFile.type,
-				upsert: false,
+			await sendTelegramAlert(
+				`<b>🚨 NEW DEPOSIT REQUEST</b>\n\n` +
+				`<b>Amount:</b> $${value} USD\n` +
+				`<b>Method:</b> ${topupMethod}\n` +
+				`<b>Status:</b> Pending Verification`
+			);
+			const { data, error: checkoutError } = await client.functions.invoke('create-paypal-order', {
+				body: { topupId: topup.id },
 			});
-			if (uploadError) throw uploadError;
-			const { error: receiptError } = await client.rpc('submit_manual_topup_receipt', {
-				p_topup_id: topup.id,
-				p_receipt_path: receiptPath,
-				p_payment_reference: manualReference.trim(),
-			});
-			if (receiptError) throw receiptError;
-
-			await refreshWallet();
-			const message = `I submitted an NCB bank transfer receipt for ${walletCurrency(value)}. Pending request ID: ${topup.id}. My transfer reference is ${manualReference.trim()}. Please verify my receipt.`;
-			setManualTopupUrl(`https://wa.me/2034235212?text=${encodeURIComponent(message)}`);
-			setManualReference('');
-			setManualReceipt(null);
-			setSuccessMessage('Your transfer receipt was submitted securely. The top-up stays pending while support verifies the transfer. Once confirmed, your wallet is credited and a receipt is emailed to your account address.');
+			if (checkoutError) throw checkoutError;
+			if (typeof data?.approvalUrl !== 'string') throw new Error('PayPal did not return an approval link.');
+			window.location.assign(data.approvalUrl);
 		} catch (topupError) {
 			setErrorMessage(displayError(topupError));
 			try {
@@ -368,6 +383,9 @@ try {
 								{busy ? 'Please wait…' : authMode === 'signin' ? 'Sign in' : 'Create account'}
 							</button>
 						</form>
+						<button className="min-h-11 rounded-lg border border-[#294572] bg-white px-4 text-sm font-bold text-slate-800 hover:bg-slate-100 disabled:opacity-50" type="button" disabled={busy} onClick={handleGoogleSignIn}>
+							Continue with Google
+						</button>
 					</div>
 				) : (
 					<div className="grid gap-6">
@@ -381,7 +399,7 @@ try {
 							</div>
 							<div className="text-right">
 								<p className="text-[10px] font-bold tracking-wider text-slate-400">WALLET BALANCE</p>
-								<p className="mt-1 text-2xl font-bold text-sky-300">{walletCurrency(profile ? getWalletBalance(profile) : 0)}</p>
+								<p className="mt-1 text-2xl font-bold text-sky-300">{profile ? walletCurrency(getWalletBalance(profile)) : loading ? 'Loading…' : 'Unavailable'}</p>
 							</div>
 						</div>
 
@@ -404,47 +422,38 @@ try {
 							<div className="grid gap-2 sm:grid-cols-2">
 								<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'paypal' ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-[#294572] text-slate-300'}`}>
 									<input type="radio" name="topupMethod" value="paypal" checked={topupMethod === 'paypal'} onChange={() => setTopupMethod('paypal')} />
-									PayPal — verify payment securely
+									PayPal
 								</label>
-								<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'manual' ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-[#294572] text-slate-300'}`}>
-									<input type="radio" name="topupMethod" value="manual" checked={topupMethod === 'manual'} onChange={() => setTopupMethod('manual')} />
-									NCB bank transfer — pending verification
+								<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'payoneer' ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-[#294572] text-slate-300'}`}>
+									<input type="radio" name="topupMethod" value="payoneer" checked={topupMethod === 'payoneer'} onChange={() => setTopupMethod('payoneer')} />
+									Payoneer
 								</label>
-							<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'lynk' ? 'border-sky-500 bg-sky-500/10' : 'border-[#294572]'}`}>
-  <input type="radio" name="topupMethod" value="lynk" checked={topupMethod === 'lynk'} onChange={() => setTopupMethod('lynk')} />
-  Lynk Jamaica – instant transfer
-</label>
-
-<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'scotiabank' ? 'border-sky-500 bg-sky-500/10' : 'border-[#294572]'}`}>
-  <input type="radio" name="topupMethod" value="scotiabank" checked={topupMethod === 'scotiabank'} onChange={() => setTopupMethod('scotiabank')} />
-  ScotiaBank – bank transfer
-</label>
-
-<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'payoneer' ? 'border-sky-500 bg-sky-500/10' : 'border-[#294572]'}`}>
-  <input type="radio" name="topupMethod" value="payoneer" checked={topupMethod === 'payoneer'} onChange={() => setTopupMethod('payoneer')} />
-  Payoneer – global transfer
-</label>
-
-<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${topupMethod === 'crypto' ? 'border-sky-500 bg-sky-500/10' : 'border-[#294572]'}`}>
-  <input type="radio" name="topupMethod" value="crypto" checked={topupMethod === 'crypto'} onChange={() => setTopupMethod('crypto')} />
-  Crypto (USDT / Binance Pay)
-</label>
+								<div className="flex items-center justify-between gap-2 rounded-lg border border-[#294572] p-3 text-sm text-slate-400" aria-label="Visa or debit card, coming soon">
+									<span>Visa / Debit Card</span>
+									<span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-300">Coming soon</span>
+								</div>
 							</div>
-							{topupMethod === 'manual' && (
-								<div className="grid gap-3 rounded-lg border border-amber-700/40 bg-amber-950/20 p-3">
-									<p className="text-xs leading-5 text-amber-100">After making your NCB transfer, enter its reference and upload the receipt. Your balance is credited only after support verifies the payment. We aim to review submissions within 5–15 minutes; bank or support delays may take longer.</p>
+							{topupMethod === 'payoneer' && (
+								<div className="grid gap-3">
 									<label className="grid gap-2 text-xs font-semibold text-slate-300">
-										NCB transfer reference
-										<input className="h-11 rounded-lg border border-[#294572] bg-[#081630] px-3 text-sm text-white outline-none focus:border-sky-400" maxLength={200} required value={manualReference} onChange={(event) => setManualReference(event.target.value)} />
+										Name for the Payoneer request
+										<input className="h-11 rounded-lg border border-[#294572] bg-[#081630] px-3 text-sm text-white outline-none focus:border-sky-400" autoComplete="name" maxLength={150} required value={payoneerName ?? profile?.full_name ?? ''} onChange={(event) => setPayoneerName(event.target.value)} />
 									</label>
-									<label className="grid gap-2 text-xs font-semibold text-slate-300">
-										Transfer receipt (JPG, PNG, WEBP, or PDF; max 5 MB)
-										<input className="text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-500 file:px-3 file:py-2 file:font-bold file:text-[#03142a]" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required onChange={(event) => setManualReceipt(event.target.files?.[0] ?? null)} />
-									</label>
+									<p className="break-all text-xs text-slate-400">Payment link email: {user.email || 'No email on your account'}</p>
+									<div className="grid gap-2 sm:grid-cols-2">
+										<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${payoneerRail === 'card' ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-[#294572] text-slate-300'}`}>
+											<input type="radio" name="payoneerRail" checked={payoneerRail === 'card'} onChange={() => setPayoneerRail('card')} />
+											Visa / debit card
+										</label>
+										<label className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm ${payoneerRail === 'bank' ? 'border-sky-500 bg-sky-500/10 text-white' : 'border-[#294572] text-slate-300'}`}>
+											<input type="radio" name="payoneerRail" checked={payoneerRail === 'bank'} onChange={() => setPayoneerRail('bank')} />
+											Bank transfer
+										</label>
+									</div>
 								</div>
 							)}
 							<button className="min-h-11 rounded-lg bg-sky-500 px-4 text-sm font-bold text-[#03142a] hover:bg-sky-300 disabled:opacity-50" type="submit" disabled={busy}>
-								{busy ? 'Processing…' : topupMethod === 'paypal' ? 'Continue to PayPal' : 'Submit transfer receipt'}
+								{busy ? 'Processing…' : topupMethod === 'paypal' ? 'Continue to PayPal' : 'Request Payoneer invoice'}
 							</button>
 						</form>
 
@@ -454,8 +463,8 @@ try {
 								{topups.length ? <ul className="grid gap-2">
 									{topups.map((topup) => (
 										<li className="flex items-center justify-between gap-3 rounded-lg border border-blue-300/10 bg-[#07142e] p-3 text-sm" key={topup.id}>
-											<div><p className="font-semibold">{currency(topup.amount, topup.currency)} · {topup.method === 'paypal' ? 'PayPal' : 'NCB bank transfer'}</p><p className="mt-1 text-xs text-slate-500">{dateTime(topup.created_at)}{topup.method === 'manual' && topup.receipt_path ? ' · Receipt submitted' : ''}</p></div>
-											<span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${topup.status === 'completed' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{topup.status}</span>
+											<div><p className="font-semibold">{currency(topup.amount, topup.currency)} · {topup.method === 'paypal' ? 'PayPal' : topup.method === 'payoneer' ? 'Payoneer' : 'NCB bank transfer'}</p><p className="mt-1 text-xs text-slate-500">{dateTime(topup.created_at)}{topup.method === 'manual' && topup.receipt_path ? ' · Receipt submitted' : ''}</p></div>
+											<span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${topup.status === 'completed' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{payoneerStatuses.find((request) => request.wallet_topup_id === topup.id)?.status ?? topup.status}</span>
 										</li>
 									))}
 								</ul> : <p className="rounded-lg border border-blue-300/10 bg-[#07142e] p-3 text-sm text-slate-500">No top-ups yet.</p>}
@@ -466,7 +475,7 @@ try {
 								{orders.length ? <ul className="grid gap-2">
 									{orders.map((order) => (
 										<li className="rounded-lg border border-blue-300/10 bg-[#07142e] p-3 text-sm" key={order.id}>
-											<div className="flex justify-between gap-3"><strong>{order.total === null ? 'Price to be confirmed' : currency(order.total, order.currency)}</strong><span className="text-xs capitalize text-slate-400">{order.status.replace(/_/g, ' ')} · {order.payment_method}</span></div>
+											<div className="flex justify-between gap-3"><strong>{order.total === null ? 'Price to be confirmed' : currency(order.total, order.currency)}</strong><span className="text-xs text-slate-400">{payoneerStatuses.find((request) => request.wallet_order_id === order.id)?.status ?? orderStatusLabel(order)} · {order.payment_method}</span></div>
 											<p className="mt-2 text-xs leading-5 text-slate-400">{Array.isArray(order.items) ? order.items.map((item) => item.name).join(', ') : 'Order items'} · {dateTime(order.created_at)}</p>
 											{order.crypto_txid && <p className="mt-1 break-all text-xs text-slate-500">TXID: {order.crypto_txid}</p>}
 										</li>
@@ -502,11 +511,6 @@ try {
 					<p className={`mt-4 rounded-lg border p-3 text-sm leading-5 ${errorMessage ? 'border-red-800 bg-red-950/40 text-red-200' : 'border-emerald-800 bg-emerald-950/30 text-emerald-200'}`} role={errorMessage ? 'alert' : 'status'}>
 						{alertContent}
 					</p>
-				)}
-				{manualTopupUrl && successMessage && (
-					<a className="mt-3 inline-flex min-h-10 items-center rounded-lg border border-sky-700 px-4 text-sm font-semibold text-sky-200 hover:border-sky-400 hover:text-white" href={manualTopupUrl} target="_blank" rel="noopener noreferrer">
-						Contact support on WhatsApp about this top-up
-					</a>
 				)}
 			</section>
 		</div>

@@ -4,6 +4,7 @@ import AccountPanel from './components/AccountPanel';
 import AdminPanel from './components/AdminPanel';
 import ServiceShowcase from './components/ServiceShowcase';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { submitPayoneerRequest } from './lib/payoneer';
 import { cryptoPayment, paypalPayment } from './data/cryptoPayment';
 import {
 	jdmFrpId,
@@ -19,11 +20,12 @@ import {
 	samsungUsaAndroid16FrpPrice,
 	icloudServiceProducts,
 } from './data/jdmFrp';
-import { highlightedWholesaleTags, wholesaleServices, wholesaleTags } from './data/wholesaleServices';
+import { highlightedWholesaleTags, wholesaleServices, wholesaleTags, type WholesaleService } from './data/wholesaleServices';
+import { pixelServices } from './data/pixelServices';
 import { giftCardBrands, giftCardProducts, type GiftCardProduct } from './data/giftCards';
 
-type OrderType = 'devices' | 'repairs' | 'wholesale' | 'credits' | 'icloud' | 'giftcards';
-type CartKind = OrderType | 'credits';
+type OrderType = 'devices' | 'repairs' | 'wholesale' | 'pixel' | 'credits' | 'icloud' | 'giftcards';
+type CartKind = Exclude<OrderType, 'pixel'>;
 type PaymentMethod = 'local' | 'payoneer' | 'wipay' | 'paypal' | 'wallet' | 'crypto';
 type LocalRail = 'lynk';
 
@@ -34,6 +36,7 @@ const storeCategories: { label: string; orderType: OrderType }[] = [
 	{ label: 'FRP Services', orderType: 'repairs' },
 	{ label: 'iCloud Remove', orderType: 'icloud' },
 	{ label: 'Wholesale Services', orderType: 'wholesale' },
+	{ label: 'Pixel Service', orderType: 'pixel' },
 	{ label: 'Digital Gift Cards', orderType: 'giftcards' },
 ];
 
@@ -62,6 +65,7 @@ type CartItem = {
 	price: number | null;
 	deviceFamily?: string;
 	identifier?: string;
+	identifierLabel?: string;
 };
 
 type ServerCreditService = {
@@ -71,13 +75,14 @@ type ServerCreditService = {
 	selectionType: 'duration' | 'quantity' | 'request';
 	requestDescription?: string;
 	options?: string[];
-	variants?: { id: string; name: string }[];
+	variants?: { id: string; name: string; minQuantity?: number; pricePerCredit?: number }[];
 	packages?: { id: string; name: string; price: number }[];
 	products?: { id: string; name: string; description: string; price: number; icon: string; image: string; deliveryTime: string; summary: string; fullDescription: string; highlighted?: boolean }[];
 	targetLabel: string;
 	requiresToolEmail?: boolean;
 	requiresTarget?: boolean;
 	minQuantity?: number;
+	pricePerCredit?: number;
 };
 
 const serverCreditServices: ServerCreditService[] = [
@@ -88,10 +93,10 @@ const serverCreditServices: ServerCreditService[] = [
 		selectionType: 'duration',
 		requiresToolEmail: true,
 		products: [
-			{ id: 'eft-1-month', name: '1 Month Activation (30 Days)', description: 'EFT Tool Activation – Official Reseller', price: 20, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 1 Month / 30 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 1 Month Activation (30 Days) license for supported mobile servicing work.' },
-			{ id: 'eft-3-months', name: '3 Months Activation (90 Days)', description: 'EFT Tool Activation – Official Reseller', price: 18, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
-			{ id: 'eft-6-months', name: '6 Months Activation (180 Days)', description: 'EFT Tool Activation – Official Reseller', price: 27, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
-			{ id: 'eft-12-months', name: '12 Months Activation (360 Days)', description: 'EFT Tool Activation – Official Reseller', price: 45, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
+			{ id: 'eft-1-month', name: '1 Month Activation (30 Days)', description: 'EFT Tool Activation – Official Reseller', price: 17, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 1 Month / 30 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 1 Month Activation (30 Days) license for supported mobile servicing work.' },
+			{ id: 'eft-3-months', name: '3 Months Activation (90 Days)', description: 'EFT Tool Activation – Official Reseller', price: 35, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
+			{ id: 'eft-6-months', name: '6 Months Activation (180 Days)', description: 'EFT Tool Activation – Official Reseller', price: 58, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
+			{ id: 'eft-12-months', name: '12 Months Activation (360 Days)', description: 'EFT Tool Activation – Official Reseller', price: 68, icon: 'EFT', image: '/images/tools/eft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'EFT Tool 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your EFT Tool account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
 		],
 		targetLabel: 'Tool account email',
 	},
@@ -102,10 +107,10 @@ const serverCreditServices: ServerCreditService[] = [
 		selectionType: 'duration',
 		requiresToolEmail: true,
 		products: [
-			{ id: 'unlock-3-months', name: '3 Months Activation (90 Days)', description: 'UnlockTool Activation – Official Reseller', price: 18, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
-			{ id: 'unlock-6-months', name: '6 Months Activation (180 Days)', description: 'UnlockTool Activation – Official Reseller', price: 27, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
-			{ id: 'unlock-12-months', name: '12 Months Activation (360 Days)', description: 'UnlockTool Activation – Official Reseller', price: 45, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
-			{ id: 'unlock-rent-6-hours', name: 'Rent [6 Hours] – Instant Auto API', description: 'All GSM Tools Rent Service – Instant Auto API', price: 1.2, icon: 'RENT', image: '/images/tools/unlocktool.svg', deliveryTime: 'Instant', summary: 'UnlockTool 6 Hours rent service with instant auto API distribution.', fullDescription: 'Temporary six-hour access to UnlockTool for quick servicing jobs.' },
+			{ id: 'unlock-3-months', name: '3 Months Activation (90 Days)', description: 'UnlockTool Activation – Official Reseller', price: 34, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
+			{ id: 'unlock-6-months', name: '6 Months Activation (180 Days)', description: 'UnlockTool Activation – Official Reseller', price: 44, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
+			{ id: 'unlock-12-months', name: '12 Months Activation (360 Days)', description: 'UnlockTool Activation – Official Reseller', price: 64, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
+			{ id: 'unlock-rent-6-hours', name: 'Rent [6 Hours] – Instant Auto API', description: 'All GSM Tools Rent Service – Instant Auto API', price: 5.2, icon: 'RENT', image: '/images/tools/unlocktool.svg', deliveryTime: 'Instant', summary: 'UnlockTool 6 Hours rent service with instant auto API distribution.', fullDescription: 'Temporary six-hour access to UnlockTool for quick servicing jobs.' },
 		],
 		targetLabel: 'Tool account email',
 	},
@@ -116,12 +121,44 @@ const serverCreditServices: ServerCreditService[] = [
 		selectionType: 'duration',
 		requiresToolEmail: true,
 		products: [
-			{ id: 'dft-3-months', name: '3 Months Activation (90 Days)', description: 'DFT Pro Activation – Official Reseller', price: 18, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
-			{ id: 'dft-6-months', name: '6 Months Activation (180 Days)', description: 'DFT Pro Activation – Official Reseller', price: 27, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
-			{ id: 'dft-12-months', name: '12 Months Activation (360 Days)', description: 'DFT Pro Activation – Official Reseller', price: 45, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
-			{ id: 'dft-rent-6-hours', name: 'Rent [6 Hours] – Instant Auto API', description: 'DFT Pro Rent Service – Instant Auto API', price: 1.2, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: 'Instant', summary: 'DFT Pro 6 Hours rent service with instant auto API distribution.', fullDescription: 'Temporary six-hour access to DFT Pro for supported servicing jobs.' },
+			{ id: 'dft-12-months', name: '12 Months Activation (360 Days)', description: 'DFT Pro Activation – Official Reseller', price: 99, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
 		],
 		targetLabel: 'Tool account email',
+	},
+	{
+		id: 'android-multi-tool',
+		name: 'Android Multi Tool',
+		selectionType: 'duration',
+		requiresTarget: true,
+		packages: [
+			{ id: 'android-multi-tool-3-months', name: '3 Month Activation', price: 18.5 },
+			{ id: 'android-multi-tool-6-months', name: '6 Month Activation', price: 27.99 },
+			{ id: 'android-multi-tool-12-months', name: '1 Year Activation', price: 34.5 },
+		],
+		targetLabel: 'Android Multi Tool username',
+	},
+	{
+		id: 'uniandroid-tool-pro',
+		name: 'UniAndroid Tool Pro',
+		logo: '/images/tools/uniandroid-tool-pro.png',
+		selectionType: 'duration',
+		requiresTarget: true,
+		packages: [
+			{ id: 'uniandroid-tool-pro-3-months', name: '3 Months Account Activation / Renew', price: 23 },
+			{ id: 'uniandroid-tool-pro-6-months', name: '6 Months Account Activation / Renew', price: 37 },
+			{ id: 'uniandroid-tool-pro-2-years', name: '2 Years Account Activation', price: 82.5 },
+		],
+		targetLabel: 'UniAndroid Tool Pro username',
+	},
+	{
+		id: 'griffin-unlocker',
+		name: 'Griffin-Unlocker',
+		selectionType: 'duration',
+		requiresTarget: true,
+		packages: [
+			{ id: 'griffin-unlocker-3-months', name: '3 Month License', price: 42 },
+		],
+		targetLabel: 'Griffin-Unlocker username',
 	},
 	{
 		id: 'global-unlocker-pro',
@@ -131,123 +168,113 @@ const serverCreditServices: ServerCreditService[] = [
 		requiresTarget: true,
 		packages: [
 			{ id: 'global-unlocker-10-credits', name: '10 Credits', price: 15 },
-			{ id: 'global-unlocker-25-credits', name: '25 Credits', price: 30 },
+			{ id: 'global-unlocker-25-credits', name: '20 Credits', price: 30 },
 			{ id: 'global-unlocker-50-credits', name: '50 Credits', price: 57 },
 			{ id: 'global-unlocker-100-credits', name: '100 Credits', price: 112 },
+			{ id: 'global-unlocker-annual-license', name: 'Annual Licence', price: 104 },
 		],
 		targetLabel: 'Global Unlocker username',
 	},
 	{
 		id: 'samkey',
-		name: 'Samkey Server Credits',
+		name: 'Samkey Code Reader',
 		selectionType: 'quantity',
 		minQuantity: 30,
 		variants: [
-			{ id: 'samkey', name: 'Samkey' },
-			{ id: 'samtmo', name: 'SamTMO' },
-			{ id: 'sammtk', name: 'SamMTK' },
+			{ id: 'samkey', name: 'Samkey', minQuantity: 30, pricePerCredit: 2 },
+			{ id: 'samtmo', name: 'SamTMO', minQuantity: 20, pricePerCredit: 2.4 },
 		],
-		targetLabel: 'Device serial / username / account email',
+		targetLabel: 'Samkey username (new or existing account)',
 	},
 ];
 
+const carrierGroupDevices = (prefix: string, includeSamsung: boolean): Device[] => [
+	{ id: `${prefix}-group-iphone-11-13-semi-premium`, name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+	{ id: `${prefix}-group-iphone-14-semi-premium`, name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+	...(includeSamsung ? [{ id: `${prefix}-group-samsung-s10-s22-nck`, name: 'Samsung Galaxy S10 – S22 Ultra NCK Code Unlock (1–5 days)', price: 40 }] : []),
+];
+const attStyleDevices = (prefix: string, includeSamsung = false): Device[] => [
+	...carrierGroupDevices(prefix, includeSamsung),
+	{ id: `${prefix}-group-iphone-15-16`, name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
+	{ id: `${prefix}-group-iphone-17-semi-premium`, name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+];
 const deviceBrands: DeviceBrand[] = [
 	{
 		name: 'T-Mobile / Sprint / MetroPCS',
 		devices: [
-			{ id: 'tmobile-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
+			{ id: 'tmobile-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 0–5 days)', price: 32.95 },
+			{ id: 'tmobile-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 0–5 days)', price: 69.95 },
+			{ id: 'tmobile-motorola-xt-2513-1', name: 'Motorola XT-2513-1 Carrier Unlock', price: 15 },
 		],
 	},
 	{
 		name: 'AT&T',
 		devices: [
-			{ id: 'att-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
-			...[
-				['s10', 'Galaxy S10'], ['s10-plus', 'Galaxy S10+'], ['s20', 'Galaxy S20'], ['s20-plus', 'Galaxy S20+'], ['s20-ultra', 'Galaxy S20 Ultra'],
-				['s21', 'Galaxy S21'], ['s21-plus', 'Galaxy S21+'], ['s21-ultra', 'Galaxy S21 Ultra'], ['s22', 'Galaxy S22'], ['s22-plus', 'Galaxy S22+'], ['s22-ultra', 'Galaxy S22 Ultra'],
-			].map(([slug, model]): Device => ({ id: `att-nck-samsung-${slug}`, name: `${model} NCK Unlock`, price: 40 })),
+			...carrierGroupDevices('att', true),
+			{ id: 'att-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'att-group-iphone-17-semi-premium', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+		],
+	},
+	{
+		name: 'Boost US',
+		devices: carrierGroupDevices('boost-us', false),
+	},
+	{ name: 'Spectrum', devices: attStyleDevices('spectrum') },
+	{ name: 'Dish', devices: attStyleDevices('dish') },
+	{
+		name: 'Xfinity',
+		devices: [
+			{ id: 'xfinity-usa-status-check-pro', name: 'XFINITY USA STATUS CHECK - PRO', price: 1 },
+			{ id: 'xfinity-iphone-unlock-usa-17-series', name: 'Xfinity iPhone Unlock (USA) — All Models 17 Series | Clean & Financed - Direct Source', price: 136.5 },
+			{ id: 'xfinity-iphone-unlock-usa-6-16-series', name: 'Xfinity iPhone Unlock (USA) — All Models 6 to 16 Series | Clean & Financed - Direct Source', price: 122.5 },
+			{ id: 'xfinity-unlock-eligibility-esn-status-check', name: 'US Xfinity Unlock Eligibility + ESN Status Check | AUTO API', price: 1 },
+		],
+	},
+	{
+		name: 'Tracfone',
+		devices: [
+			{ id: 'tracfone-hot-usa-iphone-all-models', name: 'HOT USA Tracfone / StraightTalk iPhone All Models up to 17 Series (Clean & Active +12 months, 0–60 minutes)', price: 10.95 },
+			{ id: 'tracfone-all-brands-nck', name: 'All Brands - Any IMEI from Tracfone / StraightTalk USA (NCK Only, 1–3 days)', price: 15 },
 		],
 	},
 	{
 		name: 'Verizon',
+		devices: carrierGroupDevices('verizon', false),
+	},
+	{
+		name: 'US Cricket',
 		devices: [
-			{ id: 'verizon-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
+			{ id: 'us-cricket-semi-premium-iphone-4-15', name: 'US Cricket Semi Premium Unlock | iPhone 4-15 Series', price: 136.5 },
+			{ id: 'us-cricket-semi-premium-iphone-16', name: 'US Cricket Semi Premium Unlock | iPhone 16 Series', price: 157.5 },
+			{ id: 'us-cricket-semi-premium-iphone-17', name: 'US Cricket Semi Premium Unlock | iPhone 17 Series', price: 168 },
+			{ id: 'cricket-usa-6-month-activated', name: 'Cricket USA - iPhone & Generic { Only 6 Month Activated 100% Unlock } Clean + Active IMEI Supported', price: 2 },
+			{ id: 'cricket-usa-all-models-clean-6-months', name: 'Cricket USA - iPhone & Generic All Models Supported (Clean IMEI ONLY & Activated 6+ Months)', price: 4 },
+			{ id: 'cricket-us-unlock-eligibility-check', name: 'Cricket US Unlock Eligibility Check [iPhone & Generic] Official Checker', price: 1 },
 		],
 	},
 	{
-		name: 'iPad',
+		name: 'US Cellular',
 		devices: [
-			{ id: 'ipad-mini-5', name: 'iPad mini (5th Generation)', price: 30 },
-			{ id: 'ipad-air-3', name: 'iPad Air (3rd Gen)', price: 38 },
-			{ id: 'ipad-8', name: 'iPad (8th Generation)', price: 100 },
-			{ id: 'ipad-9', name: 'iPad (9th Generation)', price: 100 },
-			{ id: 'ipad-standard', name: 'iPad', price: 100 },
-			{ id: 'ipad-mini-6', name: 'iPad mini (6th Generation)', price: 100 },
-			{ id: 'ipad-mini-7', name: 'iPad mini (7th Generation)', price: 100 },
-			{ id: 'ipad-air-11', name: 'iPad Air 11-inch', price: 100 },
-			{ id: 'ipad-air-13', name: 'iPad Air 13-inch', price: 100 },
-			{ id: 'ipad-pro-11', name: 'iPad Pro 11-inch', price: 100 },
-			{ id: 'ipad-pro-13', name: 'iPad Pro 13-inch', price: 100 },
+			{ id: 'us-cellular-locked-policy-iphone', name: 'US Cellular Locked Policy - Unlock iPhone All Models up to 18 Series + iPhone Duo (Clean IMEI)', price: 79.95 },
 		],
 	},
 	{
-		name: 'Apple Watch',
+		name: 'US Reseller Flex',
 		devices: [
-			{ id: 'watch-series-1', name: 'Apple Watch Series 1', price: null },
-			{ id: 'watch-series-2', name: 'Apple Watch Series 2', price: null },
-			{ id: 'watch-series-3', name: 'Apple Watch Series 3', price: null },
-			{ id: 'watch-series-4', name: 'Apple Watch Series 4', price: null },
-			{ id: 'watch-series-5', name: 'Apple Watch Series 5', price: null },
-			{ id: 'watch-series-6', name: 'Apple Watch Series 6', price: null },
-			{ id: 'watch-series-7', name: 'Apple Watch Series 7', price: null },
-			{ id: 'watch-series-8', name: 'Apple Watch Series 8', price: null },
-			{ id: 'watch-series-9', name: 'Apple Watch Series 9', price: null },
-			{ id: 'watch-series-10', name: 'Apple Watch Series 10', price: null },
-			{ id: 'watch-series-11', name: 'Apple Watch Series 11', price: null },
-			{ id: 'watch-se-1', name: 'Apple Watch SE (1st Generation)', price: null },
-			{ id: 'watch-se-2', name: 'Apple Watch SE (2nd Generation)', price: null },
-			{ id: 'watch-se-3', name: 'Apple Watch SE (3rd Generation)', price: null },
-			{ id: 'watch-ultra-1', name: 'Apple Watch Ultra', price: null },
-			{ id: 'watch-ultra-2', name: 'Apple Watch Ultra 2', price: null },
-			{ id: 'watch-ultra-3', name: 'Apple Watch Ultra 3', price: null },
+			{ id: 'us-reseller-flex-policy-iphone', name: 'US Reseller Flex Policy - Unlock iPhone All Models up to 18 Pro Max + iPhone Duo (Premium, only devices with Next Activation Policy)', price: 179.35 },
 		],
 	},
 	{
 		name: 'Samsung',
 		devices: [
-			{ id: 'sam-s22', name: 'Galaxy S22 Ultra', price: 550 },
-		],
-	},
-	{
-		name: 'Tecno',
-		devices: [
-			{ id: 'tec-camon-20', name: 'Tecno Camon 20 Pro', price: 220 },
-			{ id: 'tec-spark-10', name: 'Tecno Spark 10 Pro', price: 160 },
+			{ id: 'samsung-usa-att-nck', name: 'Samsung USA AT&T All Models up to S23, S24, S25, S26 Series, Z Fold 5, Z Flip 5, Z Fold 6, Z Flip 6, Z Fold 7 Series (NCK Only)', price: 54 },
+			{ id: 'samsung-all-models-nck-s25fe-s26-z-fold-8', name: 'Samsung All Models up to S25 FE, S26, Z Fold 8 (NCK Only)', price: 109.95 },
 		],
 	},
 	{
 		name: 'Xiaomi',
 		devices: [
-			{ id: 'xiaomi-redmi-12', name: 'Xiaomi Redmi Note 12', price: 190 },
-			{ id: 'xiaomi-13-pro', name: 'Xiaomi 13 Pro', price: 580 },
+			{ id: 'xiaomi-mi-account-removal-imei', name: 'Xiaomi Mi Account Removal by IMEI (0–3 days)', price: 54.95 },
 		],
 	},
 ];
@@ -256,8 +283,6 @@ const repairServices: RepairService[] = [
 	{ id: 'screen', name: 'Screen Replacement', category: 'Displays', price: 40 },
 	{ id: 'board', name: 'Board Repair / Micro-soldering', category: 'Logic Board', price: 65 },
 	{ id: 'software', name: 'Software Flash', category: 'Software', price: 25 },
-	{ id: 'galaxy-a54-frp', name: 'Galaxy A54 5G FRP Service', category: 'Samsung FRP', price: 35 },
-	{ id: 'samsung-frp-other', name: 'Samsung Galaxy FRP Service (Other Models)', category: 'Samsung FRP', price: 35 },
 	{ id: 'icloud-remove', name: 'iCloud Remove', category: 'iCloud Remove', price: null },
 	{ id: 'port', name: 'Charging Port', category: 'Hardware', price: 30 },
 	{ id: 'battery', name: 'Battery Replacement', category: 'Hardware', price: 35 },
@@ -304,8 +329,8 @@ const formatPrice = (price: number) =>
 		minimumFractionDigits: Number.isInteger(price) ? 0 : 2,
 		maximumFractionDigits: 2,
 	}).format(price);
-const formatWalletBalance = (balance: number) =>
-	new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(balance);
+const formatWalletBalance = (balance: number | null) =>
+	balance === null ? 'Unavailable' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(balance);
 
 function SearchIcon() {
 	return (
@@ -367,7 +392,7 @@ export default function App() {
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('crypto');
 	const [user, setUser] = useState<User | null>(null);
 	const [authLoading, setAuthLoading] = useState(true);
-	const [walletBalance, setWalletBalance] = useState(0);
+	const [walletBalance, setWalletBalance] = useState<number | null>(null);
 	const [accountOpen, setAccountOpen] = useState(false);
 	const [accountNotice, setAccountNotice] = useState('');
 	const [accountRefreshKey, setAccountRefreshKey] = useState(0);
@@ -400,20 +425,42 @@ export default function App() {
 		}]);
 		setSamsungUsaImei('');
 	};
+	const [samsungOldImei, setSamsungOldImei] = useState('');
+	const validSamsungOldImei = /^\d{15}$/.test(samsungOldImei.trim());
+	const addSamsungOldFrp = () => {
+		if (!validSamsungOldImei) return;
+		setCart((current) => [...current, {
+			id: 'samsung-frp-old-security-jan-2023',
+			name: 'Samsung FRP — Old Security (up to Jan 2023)',
+			kind: 'repairs',
+			price: 20,
+			identifier: samsungOldImei.trim(),
+		}]);
+		setSamsungOldImei('');
+	};
 	const [giftCardEmail, setGiftCardEmail] = useState('');
 	const validGiftCardEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(giftCardEmail.trim());
+	const [pubgPlayerId, setPubgPlayerId] = useState('');
+	const validPubgPlayerId = /^\d{5,15}$/.test(pubgPlayerId.trim());
+	const isPubgProduct = (product: GiftCardProduct) => product.brand === 'PUBG Mobile';
+	const canBuyGiftCard = (product: GiftCardProduct) => (isPubgProduct(product) ? validPubgPlayerId : validGiftCardEmail);
 	const addGiftCard = (product: GiftCardProduct) => {
-		if (!validGiftCardEmail) return;
+		if (!canBuyGiftCard(product)) return;
 		setCart((current) => [...current, {
 			id: product.id,
 			name: product.name,
 			kind: 'credits',
 			price: product.price,
-			identifier: giftCardEmail.trim(),
+			identifier: isPubgProduct(product) ? pubgPlayerId.trim() : giftCardEmail.trim(),
+			...(isPubgProduct(product) ? { identifierLabel: 'Player ID' } : {}),
 		}]);
 	};
 	const [icloudIdentifiers, setIcloudIdentifiers] = useState<Record<string, string>>({});
 	const isValidIcloudIdentifier = (value: string) => /^[A-Za-z0-9]{10,15}$/.test(value.trim());
+	const isValidWholesaleIdentifier = (service: WholesaleService, value: string) =>
+		service.identifierType === 'account'
+			? /^[A-Za-z0-9._@+-]{3,254}$/.test(value.trim())
+			: isValidIcloudIdentifier(value);
 	const addIcloudService = (product: (typeof icloudServiceProducts)[number]) => {
 		const identifier = (icloudIdentifiers[product.id] ?? '').trim();
 		if (!isValidIcloudIdentifier(identifier)) return;
@@ -448,6 +495,20 @@ export default function App() {
 		}]);
 		setSamsungUltraImei('');
 	};
+	const [samsungA17Model, setSamsungA17Model] = useState('');
+	const [samsungA17Imei, setSamsungA17Imei] = useState('');
+	const validSamsungA17Imei = /^\d{15}$/.test(samsungA17Imei.trim());
+	const addSamsungA17Frp = () => {
+		if (!samsungA17Model || !validSamsungA17Imei) return;
+		setCart((current) => [...current, {
+			id: `samsung-frp-android17-server-${samsungA17Model.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+			name: `${samsungA17Model} FRP — Android 17 (By Server)`,
+			kind: 'repairs',
+			price: 90,
+			identifier: samsungA17Imei.trim(),
+		}]);
+		setSamsungA17Imei('');
+	};
 	const [btcCopied, setBtcCopied] = useState(false);
 	const hasUsdtDetails = !cryptoPayment.usdtAddress.startsWith('YOUR_') && !cryptoPayment.binancePayId.startsWith('YOUR_');
 	const hasBtcDetails = !cryptoPayment.btcAddress.startsWith('YOUR_');
@@ -464,6 +525,8 @@ export default function App() {
 	const [postalCode, setPostalCode] = useState('');
 	const [deviceModel, setDeviceModel] = useState('');
 	const [deviceIdentifiers, setDeviceIdentifiers] = useState<Record<string, string>>({});
+	const [selectedDeviceBrand, setSelectedDeviceBrand] = useState('');
+	const [selectedDeviceId, setSelectedDeviceId] = useState('');
 	const [creditSelections, setCreditSelections] = useState<Record<string, string>>({});
 	const [creditQuantities, setCreditQuantities] = useState<Record<string, string>>({});
 	const [creditTargets, setCreditTargets] = useState<Record<string, string>>({});
@@ -473,9 +536,10 @@ export default function App() {
 		setOrderType(category.orderType);
 		document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	};
-	const headerSearchValue = orderType === 'wholesale' ? wholesaleSearch : searchQuery;
+	const isWholesaleCatalog = orderType === 'wholesale' || orderType === 'pixel';
+	const headerSearchValue = isWholesaleCatalog ? wholesaleSearch : searchQuery;
 	const handleHeaderSearch = (value: string) => {
-		if (orderType === 'wholesale') {
+		if (isWholesaleCatalog) {
 			setWholesaleSearch(value);
 			return;
 		}
@@ -531,9 +595,10 @@ export default function App() {
 
 	useEffect(() => {
 		if (!user || !isSupabaseConfigured) {
-			setWalletBalance(0);
+			setWalletBalance(null);
 			return;
 		}
+		setWalletBalance(null);
 		void refreshWalletBalance(user.id).catch((error: unknown) => {
 			setAccountNotice(error instanceof Error ? error.message : 'Could not load your wallet balance.');
 		});
@@ -566,6 +631,52 @@ export default function App() {
 			window.history.replaceState({}, document.title, `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
 			setCheckoutNotice('Payoneer checkout was cancelled. No payment was taken. Rebuild your cart to start another checkout.');
 			paypalReturnHandled.current = true;
+			return;
+		}
+
+		if (currentUrl.searchParams.has('payoneer_topup_cancelled')) {
+			currentUrl.searchParams.delete('payoneer_topup_cancelled');
+			window.history.replaceState({}, document.title, `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+			setAccountNotice('Payoneer checkout was cancelled. No wallet credit was added; you can retry the top-up.');
+			setAccountOpen(true);
+			paypalReturnHandled.current = true;
+			return;
+		}
+
+		const payoneerTopupId = currentUrl.searchParams.get('payoneer_topup');
+		if (payoneerTopupId && user && supabase && !paypalReturnHandled.current) {
+			paypalReturnHandled.current = true;
+			const client = supabase;
+			currentUrl.searchParams.delete('payoneer_topup');
+			window.history.replaceState({}, document.title, `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+			setAccountOpen(true);
+			setAccountNotice('Confirming Payoneer payment…');
+			void (async () => {
+				for (let attempt = 0; attempt < 15; attempt += 1) {
+					const { data, error } = await client.from('wallet_topups')
+						.select('status')
+						.eq('id', payoneerTopupId)
+						.eq('user_id', user.id)
+						.maybeSingle();
+					if (error) {
+						setAccountNotice(`Could not check the Payoneer top-up status: ${error.message}`);
+						setAccountRefreshKey((key) => key + 1);
+						return;
+					}
+					if (data?.status === 'completed') {
+						await refreshWalletBalance(user.id);
+						setAccountNotice('Payoneer payment verified. Your wallet has been credited.');
+						setAccountRefreshKey((key) => key + 1);
+						return;
+					}
+					await new Promise((resolve) => setTimeout(resolve, 2000));
+				}
+				setAccountNotice('Payoneer has not confirmed your payment yet. If you were charged, your wallet will update automatically after confirmation.');
+				setAccountRefreshKey((key) => key + 1);
+			})().catch((error: unknown) => {
+				setAccountNotice(error instanceof Error ? error.message : 'Could not refresh the wallet after Payoneer checkout.');
+				setAccountRefreshKey((key) => key + 1);
+			});
 			return;
 		}
 
@@ -666,7 +777,11 @@ export default function App() {
 	const filteredOtherServices = filteredServices.filter((service) => !frpSectionCategories.includes(service.category) && service.category !== 'iCloud Remove');
 	const samsungFrpSearchText = 'samsung usa android 16 may 2026 security patch jdm frp imei galaxy a02 galaxy a03 galaxy a04 galaxy s22 ultra galaxy s23 ultra galaxy s24 ultra galaxy s25 ultra galaxy s26 ultra';
 	const showSamsungFrpSpecials = !normalizedQuery || normalizedQuery.split(/\s+/).every((term) => samsungFrpSearchText.includes(term));
-	const filteredWholesaleServices = wholesaleServices.filter((service) => {
+	const catalogServices = orderType === 'pixel' ? pixelServices : wholesaleServices;
+	const catalogTags = orderType === 'pixel'
+		? Array.from(new Set(pixelServices.flatMap((service) => service.tags)))
+		: wholesaleTags;
+	const filteredWholesaleServices = catalogServices.filter((service) => {
 		const query = wholesaleSearch.trim().toLocaleLowerCase();
 		const matchesQuery = !query || `${service.title} ${service.description} ${service.category} ${service.tags.join(' ')}`
 			.toLocaleLowerCase()
@@ -723,15 +838,16 @@ export default function App() {
 
 	const [expandedWholesaleId, setExpandedWholesaleId] = useState<string | null>(null);
 	const [wholesaleIdentifiers, setWholesaleIdentifiers] = useState<Record<string, string>>({});
-	const addWholesaleService = (service: (typeof wholesaleServices)[number]) => {
+	const addWholesaleService = (service: WholesaleService) => {
 		const identifier = (wholesaleIdentifiers[service.id] ?? '').trim();
-		if (!isValidIcloudIdentifier(identifier)) return;
+		if (!isValidWholesaleIdentifier(service, identifier)) return;
 		setCart((current) => [...current, {
 			id: service.id,
 			name: service.title,
 			kind: 'wholesale',
 			price: service.price,
-			identifier: identifier.toUpperCase(),
+			identifier: service.identifierType === 'account' ? identifier : identifier.toUpperCase(),
+			identifierLabel: service.identifierLabel ?? 'IMEI / Serial',
 		}]);
 		setWholesaleIdentifiers((current) => ({ ...current, [service.id]: '' }));
 	};
@@ -767,14 +883,16 @@ export default function App() {
 		const selection = creditSelections[service.id] ?? service.packages?.[0]?.id ?? '';
 		const product = service.products?.find((item) => item.id === selection);
 		const variant = service.variants?.find((item) => item.id === selection);
+		const minimumQuantity = variant?.minQuantity ?? service.minQuantity ?? 1;
+		const pricePerCredit = variant?.pricePerCredit ?? service.pricePerCredit;
+		const quantity = Number(creditQuantities[service.id] ?? minimumQuantity);
 		const creditPackage = service.packages?.find((item) => item.id === selection);
 		const description = product?.name ?? (service.selectionType === 'quantity'
-			? `${variant ? `${variant.name} – ` : ''}${creditQuantities[service.id] || String(service.minQuantity ?? 1)} credit${creditQuantities[service.id] === '1' ? '' : 's'}`
+			? `${variant ? `${variant.name} – ` : ''}${quantity} credit${quantity === 1 ? '' : 's'}`
 			: creditPackage?.name ?? (service.selectionType === 'request' ? 'Service request' : selection));
 		if (!description) return;
 		if (service.selectionType === 'quantity') {
-			const requestedQuantity = Number(creditQuantities[service.id] ?? service.minQuantity ?? 1);
-			if (!Number.isInteger(requestedQuantity) || requestedQuantity < (service.minQuantity ?? 1)) return;
+			if (!Number.isInteger(quantity) || quantity < minimumQuantity) return;
 		}
 		if (service.requiresToolEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(creditTargets[service.id]?.trim() ?? '')) return;
 		if (service.requiresTarget && !creditTargets[service.id]?.trim()) return;
@@ -787,7 +905,9 @@ export default function App() {
 			id: product?.id ?? creditPackage?.id ?? variant?.id ?? service.id,
 			name: `${service.name} — ${description}`,
 			kind: 'credits',
-			price: product?.price ?? creditPackage?.price ?? null,
+			price: pricePerCredit !== undefined && service.selectionType === 'quantity'
+				? quantity * pricePerCredit
+				: product?.price ?? creditPackage?.price ?? null,
 			identifier: targetDetails || creditTargets[service.id]?.trim() || undefined,
 		}]);
 	};
@@ -803,6 +923,44 @@ export default function App() {
 			block: 'start',
 		});
 	};
+
+	const paypalCheckoutUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(paypalPayment.email)}&amount=${orderTotal.toFixed(2)}&currency_code=USD&item_name=${encodeURIComponent('Exclusive Mobile Solutions order')}`;
+
+	const sendOrderToTelegram = async (text: string) => {
+		const recipient = customerEmail.trim() || user?.email || '';
+		if (recipient) {
+			void fetch('/api/email-order', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ to: recipient, text }),
+			}).catch(() => undefined);
+		}
+		try {
+			const response = await fetch('/api/notify-order', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ text }),
+			});
+			return response.ok;
+		} catch {
+			return false;
+		}
+	};
+
+	const buildCompactOrderText = (paymentLabel: string, orderRef: string, extraLines: string[] = []) => [
+		`Order ${orderRef}`,
+		`Payment method: ${paymentLabel}`,
+		`Customer: ${customerName.trim()}`,
+		`Email: ${customerEmail.trim() || user?.email || 'n/a'}`,
+		...(customerPhone.trim() ? [`Phone: ${customerPhone.trim()}`] : []),
+		`Address: ${address.trim()}, ${stateRegion.trim()}, ${postalCode.trim()}, ${country}`,
+		...(deviceModel.trim() ? [`Notes: ${deviceModel.trim()}`] : []),
+		'',
+		...cart.map((item) => `- ${item.name} (${item.price === null ? 'price to be confirmed' : `${formatPrice(item.price)} USD`})${item.identifier ? ` — ${item.identifierLabel ?? 'Details'}: ${item.identifier}` : ''}`),
+		'',
+		`Total: ${formatPrice(orderTotal)} USD`,
+		...extraLines,
+	].join('\n');
 
 	const handleWhatsAppCheckout = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -846,6 +1004,7 @@ export default function App() {
 				if (error) throw error;
 				if (!order) throw new Error('The wallet order was not created.');
 				await refreshWalletBalance(user.id);
+				void sendOrderToTelegram(buildCompactOrderText('Wallet credit (PAID)', String(order.id).slice(0, 8)));
 				setCart([]);
 				setCheckoutNotice(`Order ${String(order.id).slice(0, 8)} paid successfully with wallet credit.`);
 				setAccountNotice('Your wallet payment and order are recorded in account activity.');
@@ -907,6 +1066,7 @@ export default function App() {
 				});
 				if (error) throw error;
 				if (!order?.id) throw new Error('The crypto payment order was not submitted.');
+				void sendOrderToTelegram(buildCompactOrderText('Crypto (PENDING VERIFICATION)', String(order.id).slice(0, 8), [`TXID: ${txid}`]));
 				setCart([]);
 				setCryptoTxid('');
 				setCheckoutNotice(`Order ${String(order.id).slice(0, 8)} submitted. Status: Pending Verification. We will verify the transfer before processing your order.`);
@@ -920,48 +1080,27 @@ export default function App() {
 			return;
 		}
 
-		if (paymentMethod === 'paypal') {
-			const providerName = 'PayPal';
-			if (!user) {
-				setCheckoutNotice(`Sign in or create an account before starting ${providerName} checkout.`);
-				setAccountOpen(true);
-				return;
-			}
-			if (!supabase) {
-				setCheckoutNotice(`${providerName} checkout is unavailable until Supabase is configured.`);
-				return;
-			}
+		if (paymentMethod === 'payoneer') {
 			setCheckoutBusy(true);
 			try {
-				const { data: order, error: orderError } = await supabase.rpc('create_order_request', {
-					p_items: cart.map((item) => ({
-						id: item.id,
-						kind: item.kind,
-						name: item.name,
-						identifier: item.identifier ?? null,
-					})),
-					p_customer: {
-						full_name: customerName.trim(),
-						address: address.trim(),
-						country,
-						state_region: stateRegion.trim(),
-						postal_code: postalCode.trim(),
-						device_model: deviceModel.trim(),
-						email: customerEmail.trim() || user.email || '',
-						phone: customerPhone.trim(),
+				const request = await submitPayoneerRequest({
+					type: 'order',
+					customerName: customerName.trim(),
+					customerEmail: customerEmail.trim(),
+					preference: payoneerMethod,
+					items: cart.map((item) => ({ id: item.id, kind: item.kind, name: item.name, identifier: item.identifier })),
+					customer: {
+						phone: customerPhone, address, country, state_region: stateRegion,
+						postal_code: postalCode, device_model: deviceModel,
 					},
-					p_payment_method: paymentMethod,
 				});
-				if (orderError) throw orderError;
-				if (!order) throw new Error(`The ${providerName} order request was not created.`);
-				const { data, error } = await supabase.functions.invoke(`create-${paymentMethod}-order-checkout`, {
-					body: { orderId: order.id },
-				});
-				if (error) throw error;
-				if (typeof data?.approvalUrl !== 'string') throw new Error(data?.error ?? `${providerName} did not return a checkout link.`);
-				window.location.assign(data.approvalUrl);
+				setCart([]);
+				setCheckoutNotice(request.notified
+					? `Payoneer request ${request.id} is pending approval. No payment has been taken.`
+					: `Request ${request.id} was saved, but notification failed. Contact support with this reference; do not submit again.`);
+				if (user) setAccountRefreshKey((key) => key + 1);
 			} catch (error) {
-				setCheckoutNotice(error instanceof Error ? error.message : `Could not start ${providerName} checkout. No payment was taken.`);
+				setCheckoutNotice(error instanceof Error ? error.message : 'Could not submit the Payoneer request.');
 			} finally {
 				setCheckoutBusy(false);
 			}
@@ -972,14 +1111,11 @@ export default function App() {
 		const repairs = cart.filter((item) => item.kind === 'repairs');
 		const credits = cart.filter((item) => item.kind === 'credits');
 		const wholesale = cart.filter((item) => item.kind === 'wholesale');
-		const invoiceReference = `EMS-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 		const payment = paymentMethod === 'local'
 			? `Local Transfer (${localRail.toUpperCase()})`
-			: paymentMethod === 'payoneer'
-				? `Payoneer invoice (${payoneerMethod === 'card' ? 'Visa / debit card' : 'Bank transfer'}) — please send the invoice. Reference: ${invoiceReference}`
-				: paymentMethod === 'wipay'
+			: paymentMethod === 'wipay'
 					? 'WiPay — please send current payment instructions'
-					: 'PayPal';
+					: `PayPal — payment of ${formatPrice(orderTotal)} USD sent to ${paypalPayment.email} (Goods & Services)`;
 						const messageLines = [
 							devices.length && repairs.length && wholesale.length
 								? '*EXCLUSIVE MOBILE SOLUTIONS - DEVICE, REPAIR AND WHOLESALE REQUEST*'
@@ -1030,7 +1166,7 @@ export default function App() {
 			messageLines.push(
 				'',
 				'Wholesale services:',
-				...wholesale.map((item) => `- ${item.name} (${formatPrice(item.price ?? 0)} USD)${item.identifier ? ` — IMEI / Serial: ${item.identifier}` : ''}`),
+				...wholesale.map((item) => `- ${item.name} (${formatPrice(item.price ?? 0)} USD)${item.identifier ? ` — ${item.identifierLabel ?? 'IMEI / Serial'}: ${item.identifier}` : ''}`),
 			);
 		}
 		if (repairs.length) messageLines.push('', 'Appointment schedule: Monday–Saturday. Sunday emergency appointments only, 11:00 PM–3:00 AM.');
@@ -1041,9 +1177,18 @@ export default function App() {
 			`Total amount: ${formatPrice(orderTotal)} USD${hasUnpricedCredits ? ' (unpriced server credits excluded until confirmed)' : ''}`,
 			`Payment method: ${payment}`,
 		);
-		const whatsappUrl =
-			`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(messageLines.join('\n'))}`;
-		window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+		if (paymentMethod === 'paypal') {
+			const paypalWindow = window.open(paypalCheckoutUrl, '_blank', 'noopener,noreferrer');
+			if (!paypalWindow) setCheckoutNotice('Your browser blocked the PayPal tab — allow pop-ups and tap the button again to open PayPal.');
+		}
+		setCheckoutBusy(true);
+		const orderSent = await sendOrderToTelegram(messageLines.join('\n'));
+		setCheckoutBusy(false);
+		if (!orderSent) {
+			setCheckoutNotice('We could not send your order. Please try again, or contact WhatsApp support.');
+			return;
+		}
+		setCheckoutNotice('Your order was sent successfully. We will process it shortly.');
 
 		if (user && supabase) {
 			setCheckoutBusy(true);
@@ -1068,12 +1213,12 @@ export default function App() {
 					p_payment_method: paymentMethod,
 				});
 				if (error) throw error;
-				setCheckoutNotice('Your order request was saved to account history and sent to WhatsApp.');
+				setCheckoutNotice('Your order was sent and saved to your account history. Status: In process.');
 				setAccountRefreshKey((key) => key + 1);
 			} catch (error) {
 				setCheckoutNotice(error instanceof Error
-					? `WhatsApp opened, but the order could not be saved to account history: ${error.message}`
-					: 'WhatsApp opened, but the order could not be saved to account history.');
+					? `Your order was sent, but it could not be saved to account history: ${error.message}`
+					: 'Your order was sent, but it could not be saved to account history.');
 			} finally {
 				setCheckoutBusy(false);
 			}
@@ -1098,7 +1243,7 @@ export default function App() {
 	}
 
 	return (
-		<main className="min-h-screen bg-[#050d22] text-[#f4f7fc]">
+		<main className="min-h-screen bg-white text-slate-900">
 			<div className="promo-ticker-bar" aria-label="Announcements">
 				<a
 					className="ticker-content"
@@ -1235,7 +1380,7 @@ export default function App() {
 				/>
 			)}
 
-			<div className="mx-auto w-[min(100%-2rem,1120px)] pb-8" id="top">
+			<div className={`mx-auto w-[min(100%-2rem,1120px)] ${cart.length > 0 ? 'pb-28 lg:pb-8' : 'pb-8'}`} id="top">
 				<div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-blue-300/15 py-3 text-xs text-slate-400">
 					<p className="font-semibold text-slate-300">
 						<a className="hover:text-sky-300" href="#top">Home</a>
@@ -1270,9 +1415,9 @@ export default function App() {
 						<section aria-labelledby="catalog-title">
 							<div className={`mb-5 flex items-end justify-between gap-4 ${orderType === 'credits' ? 'hidden' : ''}`}>
 								<div>
-									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : orderType === 'icloud' ? 'ICLOUD' : orderType === 'giftcards' ? 'DIGITAL GIFT CARDS' : 'WHOLESALE CATALOG'}</p>
+									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : orderType === 'icloud' ? 'ICLOUD' : orderType === 'giftcards' ? 'DIGITAL GIFT CARDS' : orderType === 'pixel' ? 'PIXEL SERVICE' : 'WHOLESALE CATALOG'}</p>
 									<h2 className="text-3xl font-bold leading-tight sm:text-4xl" id="catalog-title">
-										{orderType === 'devices' ? 'Find your next phone' : orderType === 'repairs' ? 'What can we fix?' : orderType === 'icloud' ? 'iCloud Remove' : orderType === 'giftcards' ? 'Digital gift cards by email' : 'Products & services'}
+										{orderType === 'devices' ? 'Find your next phone' : orderType === 'repairs' ? 'What can we fix?' : orderType === 'icloud' ? 'iCloud Remove' : orderType === 'giftcards' ? 'Digital gift cards by email' : orderType === 'pixel' ? 'Pixel Service' : 'Products & services'}
 									</h2>
 								</div>
 								<span className="hidden text-sm text-slate-500 sm:block">{orderType === 'devices' ? 'Browse by brand' : orderType === 'repairs' ? `${filteredServices.length - filteredIcloudServices.length} services` : orderType === 'icloud' ? `${filteredIcloudServices.length} services` : orderType === 'giftcards' ? `${visibleGiftCards.length} cards` : `${filteredWholesaleServices.length} services`}</span>
@@ -1288,19 +1433,19 @@ export default function App() {
 								<input
 									className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500 sm:text-base"
 									type="search"
-									value={orderType === 'wholesale' ? wholesaleSearch : searchQuery}
-									onChange={(event) => orderType === 'wholesale' ? setWholesaleSearch(event.target.value) : setSearchQuery(event.target.value)}
+									value={isWholesaleCatalog ? wholesaleSearch : searchQuery}
+									onChange={(event) => isWholesaleCatalog ? setWholesaleSearch(event.target.value) : setSearchQuery(event.target.value)}
 									placeholder={orderType === 'devices' ? 'Search all brands and models...' : orderType === 'repairs' ? 'Search repair services...' : orderType === 'icloud' ? 'Search iCloud services...' : orderType === 'giftcards' ? 'Search gift cards...' : 'Search services, carriers or device models...'}
 																		aria-label={orderType === 'devices' ? 'Search device brands and models' : orderType === 'repairs' ? 'Search repair services' : orderType === 'icloud' ? 'Search iCloud services' : orderType === 'giftcards' ? 'Search gift cards' : 'Search wholesale services'}
 								/>
-								{(orderType === 'wholesale' ? wholesaleSearch : searchQuery) && (
-									<button className="text-xs font-semibold text-sky-400 hover:text-white" type="button" onClick={() => orderType === 'wholesale' ? setWholesaleSearch('') : setSearchQuery('')}>
+								{(isWholesaleCatalog ? wholesaleSearch : searchQuery) && (
+									<button className="text-xs font-semibold text-sky-400 hover:text-white" type="button" onClick={() => isWholesaleCatalog ? setWholesaleSearch('') : setSearchQuery('')}>
 										Clear
 									</button>
 								)}
 							</label>}
 
-							{orderType === 'credits' ? null : orderType === 'wholesale' ? (
+							{orderType === 'credits' ? null : isWholesaleCatalog ? (
 								<div className="rounded-2xl border border-[#243f70] bg-[#091835] p-4 sm:p-6">
 									<div className="mb-5 flex flex-col gap-3 border-b border-blue-300/15 pb-4 sm:flex-row sm:items-end sm:justify-between">
 										<div>
@@ -1324,7 +1469,7 @@ export default function App() {
 											</button>
 										</div>
 										<div className="flex flex-wrap gap-2">
-											{wholesaleTags.map((tag) => {
+											{catalogTags.map((tag) => {
 												const isHighlighted = highlightedWholesaleTags.has(tag);
 												const isSelected = wholesaleTag === tag;
 												return (
@@ -1345,6 +1490,8 @@ export default function App() {
 										<div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
 											{filteredWholesaleServices.map((service) => {
 												const expanded = expandedWholesaleId === service.id;
+												const identifierValue = wholesaleIdentifiers[service.id] ?? '';
+												const validIdentifier = isValidWholesaleIdentifier(service, identifierValue);
 												return (
 												<article className={`flex min-w-0 flex-col rounded-xl border bg-[#07142e] p-4 transition hover:border-sky-500/60 ${expanded ? 'border-sky-500/60 sm:col-span-2' : 'border-[#294572]'}`} key={service.id}>
 													<button
@@ -1413,17 +1560,26 @@ export default function App() {
 														))}
 													</div>
 													<label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-300">
-														IMEI / Serial number <span className="text-red-300">Required</span>
+														{service.identifierLabel ?? 'IMEI / Serial number'} <span className="text-red-300">Required</span>
 														<input
-															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm uppercase text-white outline-none placeholder:normal-case placeholder:text-slate-600 focus:border-sky-400"
+															className={`h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:normal-case placeholder:text-slate-600 focus:border-sky-400 ${service.identifierType === 'account' ? '' : 'uppercase'}`}
 															type="text"
-															maxLength={15}
+															maxLength={service.identifierType === 'account' ? 254 : 15}
 															autoComplete="off"
-															placeholder="IMEI or serial number"
-															value={wholesaleIdentifiers[service.id] ?? ''}
-															onChange={(event) => setWholesaleIdentifiers((current) => ({ ...current, [service.id]: event.target.value.replace(/[^A-Za-z0-9]/g, '') }))}
+															placeholder={service.identifierType === 'account' ? 'Account email or username' : 'IMEI or serial number'}
+															value={identifierValue}
+															onChange={(event) => setWholesaleIdentifiers((current) => ({
+																...current,
+																[service.id]: service.identifierType === 'account'
+																	? event.target.value.replace(/[^A-Za-z0-9._@+-]/g, '')
+																	: event.target.value.replace(/[^A-Za-z0-9]/g, ''),
+															}))}
 														/>
-														{(wholesaleIdentifiers[service.id] ?? '').length > 0 && !isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '') && <span className="text-amber-200">Enter a 15-digit IMEI or a serial number (10–15 letters/digits).</span>}
+														{identifierValue.length > 0 && !validIdentifier && (
+															<span className="text-amber-200">
+																{service.identifierType === 'account' ? 'Enter a valid account email or username.' : 'Enter a 15-digit IMEI or a serial number (10–15 letters/digits).'}
+															</span>
+														)}
 													</label>
 													<div className="mt-3 flex items-center justify-between gap-3">
 														<span className="text-xs font-semibold text-slate-300">
@@ -1433,11 +1589,11 @@ export default function App() {
 														</span>
 														{service.requestOnly ? (
 															<a
-																className={`inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10 ${isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '') ? '' : 'pointer-events-none opacity-50'}`}
+																className={`inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10 ${validIdentifier ? '' : 'pointer-events-none opacity-50'}`}
 																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request a Google Pixel information check. Listed price: $${service.price.toFixed(4)} per check. IMEI / Serial: ${(wholesaleIdentifiers[service.id] ?? '').trim().toUpperCase()}`)}`}
 																target="_blank"
 																rel="noopener noreferrer"
-																aria-disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}
+																aria-disabled={!validIdentifier}
 															>
 																Request check
 															</a>
@@ -1445,13 +1601,14 @@ export default function App() {
 															<button
 																className="min-h-9 rounded-lg bg-sky-500 px-3 text-xs font-bold text-[#03142a] transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-50"
 																type="button"
-																disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}
+																disabled={!validIdentifier}
 																onClick={() => addWholesaleService(service)}
 															>
 																Buy now
 															</button>
 														)}
 													</div>
+													{!validIdentifier && <p className="mt-2 text-[11px] text-amber-200">Enter the {service.identifierType === 'account' ? 'account email or username' : 'IMEI / serial number'} above to enable Buy now.</p>}
 												</article>
 												);
 											})}
@@ -1486,17 +1643,34 @@ export default function App() {
 										return (
 											<section className="space-y-2" key={brand.id} aria-label={brand.name}>
 												<h3 className="border-b border-blue-300/15 pb-2 text-base font-bold">{brand.name}</h3>
+												{brand.id === 'pubg' && (
+													<label className="grid gap-1.5 rounded-xl border border-[#243f70] bg-[#07142e] p-3 text-xs font-medium text-slate-300">
+														Player ID <span className="text-red-300">Required</span>
+														<input
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+															type="text"
+															inputMode="numeric"
+															maxLength={15}
+															autoComplete="off"
+															placeholder="Your PUBG Mobile Player ID"
+															value={pubgPlayerId}
+															onChange={(event) => setPubgPlayerId(event.target.value.replace(/\D/g, ''))}
+														/>
+														{pubgPlayerId.length > 0 && !validPubgPlayerId && <span className="text-amber-200">Enter a valid numeric Player ID.</span>}
+														<span className="text-slate-400">UC is topped up directly to this account, usually in 1–10 minutes. No PIN code needed. Double-check your Player ID.</span>
+													</label>
+												)}
 												<div className="grid gap-2 sm:grid-cols-2">
 													{products.map((product) => (
 														<div className="flex items-center justify-between gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-3" key={product.id}>
 															<div>
-																<p className="text-sm font-semibold text-slate-100">${product.value} gift card</p>
+																<p className="text-sm font-semibold text-slate-100">{product.label ?? `$${product.value} gift card`}</p>
 																<strong className="text-sm text-sky-300">{formatPrice(product.price)} USD</strong>
 															</div>
 															<button
 																className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
 																type="button"
-																disabled={!validGiftCardEmail}
+																disabled={!canBuyGiftCard(product)}
 																onClick={() => addGiftCard(product)}
 															>
 																Buy now
@@ -1504,6 +1678,7 @@ export default function App() {
 														</div>
 													))}
 												</div>
+												{brand.id === 'pubg' ? !validPubgPlayerId && <p className="text-[11px] text-amber-200">Enter your Player ID above to enable Buy now.</p> : !validGiftCardEmail && <p className="text-[11px] text-amber-200">Enter your delivery email above to enable Buy now.</p>}
 											</section>
 										);
 									})}
@@ -1549,6 +1724,7 @@ export default function App() {
 														Buy now
 													</button>
 												</div>
+												{!valid && <p className="text-[11px] text-amber-200">Enter the IMEI / serial number above to enable Buy now.</p>}
 											</div>
 										);
 									})}
@@ -1561,54 +1737,79 @@ export default function App() {
 								</div>
 							) : orderType === 'devices' ? (
 								filteredBrands.length ? (
-									<div className="space-y-7" aria-live="polite">
-										{filteredBrands.map((brand) => {
-											const deviceRows = (
-												<div className="divide-y divide-blue-300/10">
-													{brand.devices.map((device) => (
-														<article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-3" key={device.id}>
-															<div className="min-w-0">
-																<h4 className="font-semibold text-slate-100">{device.name}</h4>
-																<p className="mt-1 text-xs text-slate-400">
-																	{device.price === null ? 'Contact for price' : `${formatPrice(device.price)} USD`}
-																</p>
-															</div>
-															<button
-																className="row-span-2 min-h-9 shrink-0 rounded-lg border border-sky-800 bg-[#092342] px-3 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] sm:px-4 sm:text-sm"
-																type="button"
-																onClick={() => addDevice(brand.name, device)}
-																aria-label={`Buy now: ${brand.name} ${device.name}${device.price === null ? '' : ` for ${formatPrice(device.price)}`}`}
-															>
-																Buy now
-															</button>
-															<label className="col-span-2 grid gap-1 text-[11px] font-medium text-slate-400">
-																IMEI / Serial number
-																<input
-																	className="h-9 w-full rounded-lg border border-[#294572] bg-[#07142e] px-3 text-xs text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
-																	autoComplete="off"
-																	name={`identifier-${device.id}`}
-																	placeholder={`Enter ${device.name} IMEI or serial number (optional)`}
-																	value={deviceIdentifiers[device.id] ?? ''}
-																	onChange={(event) => updateDeviceIdentifier(device.id, event.target.value)}
-																/>
-															</label>
-														</article>
-													))}
-												</div>
-											);
-
+									<div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5" aria-live="polite">
+										<label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+											Phone brand
+											<select
+												className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+												value={filteredBrands.some((brand) => brand.name === selectedDeviceBrand) ? selectedDeviceBrand : filteredBrands[0].name}
+												onChange={(event) => {
+													setSelectedDeviceBrand(event.target.value);
+													setSelectedDeviceId('');
+												}}
+											>
+												{filteredBrands.map((brand) => (
+													<option key={brand.name} value={brand.name}>{brand.name} ({brand.devices.length} models)</option>
+												))}
+											</select>
+										</label>
+										{(() => {
+											const brand = filteredBrands.find((item) => item.name === selectedDeviceBrand) ?? filteredBrands[0];
+											const device = brand.devices.find((item) => item.id === selectedDeviceId) ?? brand.devices[0];
 											return (
-												<div key={brand.name}>
-													<details className="group" open={normalizedQuery.length > 0}>
-														<summary className="mb-2 flex cursor-pointer items-center justify-between border-b border-blue-300/15 pb-2 text-lg font-bold marker:text-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400">
-															<span>{brand.name}</span>
-															<span className="text-xs font-normal text-slate-500">{brand.devices.length} models</span>
-														</summary>
-														{deviceRows}
-													</details>
-												</div>
+												<>
+													<label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+														Phone model
+														<select
+															className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+															value={device.id}
+															onChange={(event) => setSelectedDeviceId(event.target.value)}
+														>
+															{brand.devices.map((item) => (
+																<option key={item.id} value={item.id}>
+																	{item.name} — {item.price === null ? 'Contact for price' : `${formatPrice(item.price)} USD`}
+																</option>
+															))}
+														</select>
+													</label>
+													<label className="grid gap-1.5 text-sm font-medium text-slate-700">
+														IMEI / Serial number <span className="font-normal text-slate-500">Optional</span>
+														<input
+															className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-500"
+															autoComplete="off"
+															name={`identifier-${device.id}`}
+															placeholder={`Enter ${device.name} IMEI or serial number`}
+															value={deviceIdentifiers[device.id] ?? ''}
+															onChange={(event) => updateDeviceIdentifier(device.id, event.target.value)}
+														/>
+													</label>
+													{brand.name.startsWith('T-Mobile') && (
+														<p className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-semibold leading-5 text-sky-900" role="note">
+															Clean and eligible IMEIs only.
+														</p>
+													)}
+													{/iphone|pro max/i.test(device.name) && (
+														<p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-900" role="note">
+															No refund once the IMEI has been submitted for unlock.
+															<span className="mt-1 block">Stolen, lost or fraud-reported devices are not supported.</span>
+														</p>
+													)}
+													<div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+														<strong className="text-lg text-slate-900">
+															{device.price === null ? 'Contact for price' : `${formatPrice(device.price)} USD`}
+														</strong>
+														<button
+															className="min-h-10 rounded-lg bg-sky-500 px-5 text-sm font-bold text-white transition hover:bg-sky-600"
+															type="button"
+															onClick={() => addDevice(brand.name, device)}
+															aria-label={`Buy now: ${brand.name} ${device.name}${device.price === null ? '' : ` for ${formatPrice(device.price)}`}`}
+														>
+															Buy now
+														</button>
+													</div>
+												</>
 											);
-										})}
+										})()}
 									</div>
 								) : (
 									<p className="rounded-xl border border-blue-300/15 bg-[#091835] p-6 text-center text-sm text-slate-400" role="status">
@@ -1622,6 +1823,9 @@ export default function App() {
 											<div className="border-b border-blue-300/15 pb-2">
 												<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Dedicated</p>
 												<h3 className="text-base font-bold" id="samsung-frp-title">Samsung FRP</h3>
+											</div>
+											<div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-xs leading-5 text-sky-100">
+												FRP services are completed remotely using AnyDesk or TeamViewer. A computer and stable internet connection are required.
 											</div>
 											{renderRepairServices(filteredSamsungFrpServices)}
 											{(!normalizedQuery || 'samsung jdm frp imei'.includes(normalizedQuery)) && (
@@ -1674,6 +1878,7 @@ export default function App() {
 															Buy now
 														</button>
 													</div>
+													{(!jdmModel || !validJdmImei) && <p className="text-[11px] text-amber-200">Select your model and enter the 15-digit IMEI above to enable Buy now.</p>}
 												</div>
 											)}
 											{showSamsungFrpSpecials && (
@@ -1719,6 +1924,7 @@ export default function App() {
 															Buy now
 														</button>
 													</div>
+													{(!samsungUltraModel || !validSamsungUltraImei) && <p className="text-[11px] text-amber-200">Select your model and enter the 15-digit IMEI above to enable Buy now.</p>}
 												</div>
 											)}
 											{showSamsungFrpSpecials && (
@@ -1753,6 +1959,88 @@ export default function App() {
 															Buy now
 														</button>
 													</div>
+													{!validSamsungUsaImei && <p className="text-[11px] text-amber-200">Enter the 15-digit IMEI above to enable Buy now.</p>}
+												</div>
+											)}
+											{showSamsungFrpSpecials && (
+												<div className="grid gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-4">
+													<div>
+														<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Samsung FRP</p>
+														<h4 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">Samsung FRP — Old Security (up to Jan 2023)</h4>
+														<p className="mt-1 text-xs text-slate-400">Enter the device's 15-digit IMEI to request service.</p>
+													</div>
+													<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+														IMEI number <span className="text-red-300">Required</span>
+														<input
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+															type="text"
+															inputMode="numeric"
+															maxLength={15}
+															autoComplete="off"
+															placeholder="15-digit IMEI (dial *#06#)"
+															value={samsungOldImei}
+															onChange={(event) => setSamsungOldImei(event.target.value.replace(/\D/g, ''))}
+														/>
+														{samsungOldImei.length > 0 && !validSamsungOldImei && <span className="text-amber-200">IMEI must be exactly 15 digits.</span>}
+													</label>
+													<div className="flex items-center justify-between gap-3">
+														<strong className="text-lg text-sky-300">{formatPrice(20)} USD</strong>
+														<button
+															className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
+															type="button"
+															disabled={!validSamsungOldImei}
+															onClick={addSamsungOldFrp}
+														>
+															Buy now
+														</button>
+													</div>
+													{!validSamsungOldImei && <p className="text-[11px] text-amber-200">Enter the 15-digit IMEI above to enable Buy now.</p>}
+												</div>
+											)}
+											{showSamsungFrpSpecials && (
+												<div className="grid gap-3 rounded-xl border border-[#243f70] bg-[#07142e] p-4">
+													<div>
+														<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Samsung FRP</p>
+														<h4 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">Galaxy S22 Ultra–S26 Ultra FRP — Android 17 (By Server)</h4>
+														<p className="mt-1 text-xs text-slate-400">Select your model and enter its 15-digit IMEI to request service.</p>
+													</div>
+													<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+														Select model
+														<select
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none focus:border-sky-400"
+															value={samsungA17Model}
+															onChange={(event) => setSamsungA17Model(event.target.value)}
+														>
+															<option value="">Choose a model…</option>
+															{samsungUltraFrpModels.map((model) => <option key={model} value={model}>{model}</option>)}
+														</select>
+													</label>
+													<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+														IMEI number <span className="text-red-300">Required</span>
+														<input
+															className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+															type="text"
+															inputMode="numeric"
+															maxLength={15}
+															autoComplete="off"
+															placeholder="15-digit IMEI (dial *#06#)"
+															value={samsungA17Imei}
+															onChange={(event) => setSamsungA17Imei(event.target.value.replace(/\D/g, ''))}
+														/>
+														{samsungA17Imei.length > 0 && !validSamsungA17Imei && <span className="text-amber-200">IMEI must be exactly 15 digits.</span>}
+													</label>
+													<div className="flex items-center justify-between gap-3">
+														<strong className="text-lg text-sky-300">{formatPrice(90)} USD</strong>
+														<button
+															className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
+															type="button"
+															disabled={!samsungA17Model || !validSamsungA17Imei}
+															onClick={addSamsungA17Frp}
+														>
+															Buy now
+														</button>
+													</div>
+													{(!samsungA17Model || !validSamsungA17Imei) && <p className="text-[11px] text-amber-200">Select your model and enter the 15-digit IMEI above to enable Buy now.</p>}
 												</div>
 											)}
 										</section>
@@ -1780,18 +2068,21 @@ export default function App() {
 								<div className="mb-5">
 									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">SOFTWARE & LICENSES</p>
 									<h2 className="text-2xl font-bold leading-tight sm:text-3xl" id="server-credits-title">Server Credits for Box/Dongle</h2>
-									<p className="mt-2 text-sm leading-6 text-slate-400">Choose an offer to view its details. EFT Tool and UnlockTool prices are shown up front; other service pricing is confirmed by our team.</p>
+									<p className="mt-2 text-sm leading-6 text-slate-400">Choose an offer to view its details. EFT Tool, UnlockTool, and Samkey prices are shown up front; other service pricing is confirmed by our team.</p>
 								</div>
 								<div className="grid gap-3">
 									{serverCreditServices.map((service) => {
 										const selectedDuration = creditSelections[service.id] ?? service.packages?.[0]?.id ?? '';
-										const minQuantity = service.minQuantity ?? 1;
+										const selectedVariant = service.variants?.find((item) => item.id === selectedDuration);
+										const minQuantity = selectedVariant?.minQuantity ?? service.minQuantity ?? 1;
+										const pricePerCredit = selectedVariant?.pricePerCredit ?? service.pricePerCredit;
 										const quantity = creditQuantities[service.id] ?? String(minQuantity);
 										const quantityValue = Number(quantity);
 										const creditTarget = creditTargets[service.id]?.trim() ?? '';
 										const selectedProduct = service.products?.find((product) => product.id === selectedDuration);
 										const selectedPackage = service.packages?.find((item) => item.id === selectedDuration);
 										const validToolEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(creditTarget);
+										const canAddProduct = !service.requiresToolEmail || validToolEmail;
 										const canAddSelection = service.selectionType === 'duration'
 											? selectedDuration.length > 0
 											: service.selectionType === 'quantity'
@@ -1800,7 +2091,7 @@ export default function App() {
 										const canAdd = canAddSelection
 											&& (!service.requiresToolEmail || validToolEmail)
 											&& (!service.requiresTarget || creditTarget.length > 0);
-										const isToolDropdown = ['eft-tool', 'unlock-tool', 'dft-pro', 'global-unlocker-pro', 'samkey'].includes(service.id);
+										const isToolDropdown = ['eft-tool', 'unlock-tool', 'dft-pro', 'android-multi-tool', 'uniandroid-tool-pro', 'griffin-unlocker', 'global-unlocker-pro', 'samkey'].includes(service.id);
 										const ServiceCard = isToolDropdown ? 'details' : 'article';
 										const ServiceHeading = isToolDropdown ? 'summary' : 'div';
 
@@ -1862,6 +2153,7 @@ export default function App() {
 																>
 																	Add credit package to order
 																</button>
+																{!canAdd && <p className="text-[11px] text-amber-200">Fill in the required fields above to enable Buy now.</p>}
 															</div>
 														</>
 													) : service.products ? (
@@ -1897,10 +2189,25 @@ export default function App() {
 																	</div>
 																	<p className="text-3xl font-bold text-white">{formatPrice(selectedProduct.price)} USD</p>
 																	<p className="text-sm leading-relaxed text-slate-300">{selectedProduct.summary}</p>
+																	{service.requiresToolEmail && (
+																		<label className="grid gap-1.5 text-xs font-medium text-slate-300">
+																			Tool account email <span className="text-red-300">Required</span>
+																			<input
+																				className="h-10 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+																				type="email"
+																				autoComplete="email"
+																				placeholder="Enter the email registered to this tool"
+																				required
+																				value={creditTargets[service.id] ?? ''}
+																				onChange={(event) => setCreditTargets((current) => ({ ...current, [service.id]: event.target.value }))}
+																			/>
+																		</label>
+																	)}
 																	<div className="flex items-center gap-3 pt-2">
 																		<button
-																			className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-sky-500 text-sky-300 transition hover:bg-sky-500/10"
+																			className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-sky-500 text-sky-300 transition hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
 																			type="button"
+																			disabled={!canAddProduct}
 																			aria-label={`Add ${selectedProduct.name} to cart`}
 																			onClick={() => addServerCredit(service)}
 																		>
@@ -1909,8 +2216,9 @@ export default function App() {
 																			</svg>
 																		</button>
 																		<button
-																			className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md bg-sky-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500"
+																			className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-md bg-sky-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
 																			type="button"
+																			disabled={!canAddProduct}
 																			onClick={() => {
 																				addServerCredit(service);
 																				document.getElementById('summary-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2013,7 +2321,11 @@ export default function App() {
 												</div>
 												{!service.products && <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
 													<p className={`text-sm font-semibold ${service.products ? 'text-sky-300' : 'text-amber-200'}`}>
-														{service.products ? (selectedProduct ? `${formatPrice(selectedProduct.price)} USD selected` : 'Select an offer to see details') : 'Contact for price/payment'}
+														{service.products
+															? (selectedProduct ? `${formatPrice(selectedProduct.price)} USD selected` : 'Select an offer to see details')
+															: pricePerCredit !== undefined
+																? `${formatPrice(pricePerCredit)} USD per credit · ${formatPrice(quantityValue * pricePerCredit)} USD total`
+																: 'Contact for price/payment'}
 													</p>
 													<button
 														className="min-h-9 rounded-lg border border-sky-800 bg-[#092342] px-4 text-xs font-semibold text-sky-200 transition hover:border-sky-400 hover:bg-[#0d3458] disabled:cursor-not-allowed disabled:opacity-50"
@@ -2023,6 +2335,7 @@ export default function App() {
 													>
 														Buy now
 													</button>
+													{!canAdd && <p className="basis-full text-[11px] text-amber-200">Fill in the required fields above to enable Buy now.</p>}
 												</div>}
 											</ServiceCard>
 										);
@@ -2031,7 +2344,7 @@ export default function App() {
 							</section>}
 						</section>
 
-						{cart.length > 0 && <aside id="checkout-summary" className="rounded-2xl border border-[#243f70] bg-[#091835] p-5 shadow-xl lg:sticky lg:top-24" aria-labelledby="summary-title">
+						{cart.length > 0 && <aside id="checkout-summary" className="scroll-mt-24 max-h-[calc(100dvh-9rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-[#243f70] bg-[#091835] p-5 shadow-xl [scrollbar-gutter:stable] lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]" aria-labelledby="summary-title">
 							<details className="group" open>
 								<summary className="flex cursor-pointer list-none items-center justify-between gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 [&::-webkit-details-marker]:hidden">
 								<div>
@@ -2060,7 +2373,7 @@ export default function App() {
 											<div className="min-w-0">
 												<p className="break-words text-sm text-slate-200">{item.name}</p>
 												<p className="mt-1 text-xs text-slate-500">{item.price === null ? 'Contact for price' : `${formatPrice(item.price)} USD`}</p>
-												{item.identifier && <p className="mt-1 break-all text-xs text-slate-500">{item.kind === 'credits' ? (item.id.startsWith('giftcard-') ? 'Delivery email: ' : 'Account details: ') : 'IMEI / Serial: '}{item.identifier}</p>}
+												{item.identifier && <p className="mt-1 break-all text-xs text-slate-500">{item.kind === 'credits' ? (item.id.startsWith('giftcard-pubg') ? 'Player ID: ' : item.id.startsWith('giftcard-') ? 'Delivery email: ' : 'Account details: ') : `${item.identifierLabel ?? 'IMEI / Serial'}: `}{item.identifier}</p>}
 											</div>
 											<button
 												className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[#294572] text-slate-400 transition hover:border-red-400 hover:text-red-300"
@@ -2122,156 +2435,8 @@ export default function App() {
 								</>
 							)}
 
-							{cart.length > 0 && (
-								<div className="grid gap-2">
-									<div className="grid grid-cols-2 gap-2" role="group" aria-label="Quick payment options">
-										{([['paypal', 'Pay with PayPal'], ['payoneer', 'Pay with Payoneer']] as const).map(([method, label]) => (
-											<button
-												className={`min-h-11 rounded-lg border px-3 text-sm font-bold transition ${paymentMethod === method ? 'border-sky-400 bg-sky-500 text-[#03142a]' : 'border-[#294572] bg-[#07142e] text-slate-200 hover:border-sky-400'}`}
-												key={method}
-												type="button"
-												aria-pressed={paymentMethod === method}
-												onClick={() => setPaymentMethod(method)}
-											>
-												{label}
-											</button>
-										))}
-									</div>
-									<label className="text-xs font-semibold text-slate-300" htmlFor="paymentMethod">Select payment method</label>
-									<select
-										className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none focus:border-sky-400"
-										id="paymentMethod"
-										name="paymentMethod"
-										value={paymentMethod}
-										onChange={(event) => {
-											const value = event.target.value;
-											setPaymentMethod(value === 'payoneer' || value === 'wipay' || value === 'paypal' || value === 'wallet' || value === 'crypto' ? value : 'local');
-										}}
-									>
-										<option value="local">Local transfer</option>
-										<option value="crypto">Crypto: Bitcoin / USDT (Pending Verification)</option>
-										<option value="payoneer">Payoneer</option>
-										<option value="wipay">WiPay</option>
-										<option value="paypal">PayPal</option>
-										<option value="wallet">Wallet credit</option>
-									</select>
-									{paymentMethod === 'crypto' && (
-										<div className="grid gap-3 rounded-lg border border-amber-500/30 bg-amber-950/20 p-3">
-											<div>
-												<p className="text-sm font-bold text-amber-100">Crypto payment — manual verification</p>
-										<p className="mt-1 text-xs leading-5 text-amber-100/80">Send the exact order total ({formatPrice(orderTotal)} USD) in {hasBtcDetails && hasUsdtDetails ? 'Bitcoin (BTC) or USDT' : hasBtcDetails ? 'Bitcoin (BTC)' : 'USDT'} to the address below, then enter the transaction ID. Orders remain Pending Verification until payment is checked. A submitted TXID is not proof of payment.</p>
-											</div>
-											{hasBtcDetails && (
-												<div className="grid gap-2 rounded-lg border border-amber-300/15 bg-[#07142e] p-3 text-xs">
-													<p className="font-semibold text-amber-100">Pay with Bitcoin (BTC)</p>
-													<div className="flex items-center gap-2 rounded-lg border border-[#294572] bg-[#081630] p-2">
-														<code className="min-w-0 flex-1 break-all font-mono text-xs text-slate-100">{cryptoPayment.btcAddress}</code>
-														<button
-															className="shrink-0 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#1a1100] transition hover:bg-amber-400"
-															type="button"
-															onClick={copyBtcAddress}
-														>
-															{btcCopied ? 'Copied' : 'Copy'}
-														</button>
-													</div>
-													<p className="text-slate-400">Bitcoin network only. Sending any other coin or network to this address will lose the funds.</p>
-												</div>
-											)}
-											{hasUsdtDetails && (
-											<div className="grid gap-2 rounded-lg border border-amber-300/15 bg-[#07142e] p-3 text-xs">
-												<p><span className="text-slate-400">USDT network:</span> <strong className="text-white">{cryptoPayment.usdtNetwork}</strong></p>
-												<p className="break-all"><span className="text-slate-400">USDT address:</span> <strong className="text-white">{cryptoPayment.usdtAddress}</strong></p>
-												<p className="break-all"><span className="text-slate-400">Binance Pay ID:</span> <strong className="text-white">{cryptoPayment.binancePayId}</strong></p>
-											</div>
-											)}
-											{hasUsdtDetails && !cryptoPayment.qrImagePath.includes('UPDATE_WITH') && (
-												<img className="mx-auto max-h-48 rounded-lg bg-white p-2" src={cryptoPayment.qrImagePath} alt="USDT TRC20 payment QR code" />
-											)}
-											{!hasUsdtDetails && !hasBtcDetails && (
-												<p className="rounded border border-amber-500/30 p-2 text-xs text-amber-100" role="status">Replace the crypto payment placeholders in src/data/cryptoPayment.ts before accepting payment.</p>
-											)}
-											{cart.some((item) => item.price === null) && (
-												<p className="rounded border border-amber-500/30 p-2 text-xs text-amber-100" role="status">One or more cart items need a confirmed price before crypto payment can be submitted.</p>
-											)}
-											<label className="grid gap-2 text-xs font-semibold text-slate-300">
-												Transaction ID (TXID)
-												<input
-													className="h-11 rounded-lg border border-[#294572] bg-[#081630] px-3 text-sm text-white outline-none focus:border-sky-400"
-													autoComplete="off"
-													maxLength={200}
-													minLength={6}
-													required
-													value={cryptoTxid}
-													onChange={(event) => setCryptoTxid(event.target.value)}
-													placeholder="Enter the transaction reference after sending payment"
-												/>
-											</label>
-										</div>
-									)}
-										{paymentMethod === 'paypal' && (
-											<p className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs leading-5 text-blue-100" role="status">
-												Sign in or create an account here so your order can be saved. Then continue to PayPal to sign in or create a PayPal account and approve payment. You’ll return here after approval.
-												<span className="mt-2 block border-t border-blue-300/20 pt-2">
-													Prefer to pay manually? Send {formatPrice(orderTotal)} USD to <strong className="break-all text-white">{paypalPayment.email}</strong> on PayPal using <strong className="text-white">Goods &amp; Services</strong>, then include your order details when you send your request.
-												</span>
-											</p>
-										)}
-										{paymentMethod === 'payoneer' && (
-											<div className="grid gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 p-3 text-xs leading-5 text-orange-100" role="group" aria-label="Payoneer invoice payment type">
-												<p>Send your order and we’ll email you a Payoneer invoice with a unique reference. Choose how you’ll pay it:</p>
-												<div className="grid grid-cols-2 gap-2">
-													{([['card', 'Visa / Debit card'], ['bank', 'Bank transfer']] as const).map(([value, label]) => (
-														<button
-															className={`min-h-10 rounded-lg border px-3 text-xs font-bold transition ${payoneerMethod === value ? 'border-orange-300 bg-orange-500 text-white' : 'border-orange-500/40 text-orange-100 hover:border-orange-300'}`}
-															key={value}
-															type="button"
-															aria-pressed={payoneerMethod === value}
-															onClick={() => setPayoneerMethod(value)}
-														>
-															{label}
-														</button>
-													))}
-												</div>
-												<p>No payment is collected here.</p>
-											</div>
-										)}
-										{paymentMethod === 'wipay' && (
-											<p className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100" role="status">
-												Select WiPay to request current payment instructions after you send your order. No payment is collected here.
-											</p>
-										)}
-										{paymentMethod === 'wallet' && (
-										<p className="rounded-lg border border-sky-800/70 bg-sky-950/30 p-3 text-xs leading-5 text-sky-100" role="status">
-											{user
-												? `Available balance: ${formatWalletBalance(walletBalance)}. The server will verify catalog prices and balance before payment.`
-												: 'Sign in to pay from your wallet.'}
-												{(hasUnpricedDevices || hasUnpricedRepairs || hasUnpricedCredits) && ' Items without confirmed prices cannot be paid from the wallet; request a quote separately.'}
-										</p>
-									)}
-									{paymentMethod === 'local' && (
-										<div className="flex gap-2" aria-label="Choose local transfer method">
-											{(['lynk'] as const).map((rail) => (
-												<button
-													className={`min-h-8 rounded-md border px-3 text-xs font-semibold ${localRail === rail ? 'border-sky-600 bg-sky-950 text-sky-200' : 'border-[#294572] text-slate-400 hover:text-white'}`}
-													key={rail}
-													type="button"
-													aria-pressed={localRail === rail}
-													onClick={() => setLocalRail(rail)}
-												>
-													{rail.toUpperCase()}
-												</button>
-											))}
-										</div>
-									)}
-								</div>
-							)}
-							{guestCheckout && !user && (
-								<p className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs leading-5 text-emerald-100" role="status">
-									Guest checkout sends your request to WhatsApp and does not save it to account history. PayPal, crypto, and wallet payments require sign-in.
-								</p>
-							)}
 							<fieldset className="mb-5 grid gap-3 rounded-xl border border-blue-300/15 p-3">
-								<legend className="px-1 text-sm font-bold text-slate-100">Customer information</legend>
+								<legend className="px-1 text-sm font-bold text-slate-100">1. Order details</legend>
 								<label className="grid gap-2 text-xs font-semibold text-slate-300">
 									Full name
 									<input
@@ -2284,21 +2449,21 @@ export default function App() {
 										onChange={(event) => setCustomerName(event.target.value)}
 									/>
 								</label>
+								<label className="grid gap-2 text-xs font-semibold text-slate-300">
+									Email address (your order confirmation is sent here)
+									<input
+										className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+										autoComplete="email"
+										name="customerEmail"
+										type="email"
+										placeholder="you@example.com"
+										required
+										value={customerEmail}
+										onChange={(event) => setCustomerEmail(event.target.value)}
+									/>
+								</label>
 								{paymentMethod === 'payoneer' && (
 									<>
-										<label className="grid gap-2 text-xs font-semibold text-slate-300">
-											Email address for Payoneer
-											<input
-												className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
-												autoComplete="email"
-												name="customerEmail"
-												type="email"
-												placeholder="you@example.com"
-												required
-												value={customerEmail}
-												onChange={(event) => setCustomerEmail(event.target.value)}
-											/>
-										</label>
 										<label className="grid gap-2 text-xs font-semibold text-slate-300">
 											Phone number for Payoneer
 											<input
@@ -2364,28 +2529,191 @@ export default function App() {
 										onChange={(event) => setPostalCode(event.target.value)}
 									/>
 								</label>
+								<label className="grid gap-2 text-xs font-semibold text-slate-300">
+									{hasRepairs ? 'Device model for repair' : 'Custom notes / specifications'}
+									<input
+										className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
+										name="deviceModel"
+										placeholder={hasRepairs ? 'e.g. iPhone 13 Pro' : 'e.g. preferred color or storage'}
+										required={hasRepairs}
+										value={deviceModel}
+										onChange={(event) => setDeviceModel(event.target.value)}
+									/>
+								</label>
 							</fieldset>
 
-							<label className="mb-4 grid gap-2 text-xs font-semibold text-slate-300">
-								{hasRepairs ? 'Device model for repair' : 'Custom notes / specifications'}
-								<input
-									className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-sky-400"
-									name="deviceModel"
-									placeholder={hasRepairs ? 'e.g. iPhone 13 Pro' : 'e.g. preferred color or storage'}
-									required={hasRepairs}
-									value={deviceModel}
-									onChange={(event) => setDeviceModel(event.target.value)}
-								/>
-							</label>
-
-
-
+							{cart.length > 0 && (
+								<div className="grid gap-2">
+									<p className="text-sm font-bold text-slate-100">2. Payment</p>
+									<div className="grid grid-cols-2 gap-2" role="group" aria-label="Quick payment options">
+										{([['paypal', 'Pay with PayPal'], ['payoneer', 'Pay with Payoneer']] as const).map(([method, label]) => (
+											<button
+												className={`min-h-11 rounded-lg border px-3 text-sm font-bold transition ${paymentMethod === method ? 'border-sky-400 bg-sky-500 text-[#03142a]' : 'border-[#294572] bg-[#07142e] text-slate-200 hover:border-sky-400'}`}
+												key={method}
+												type="button"
+												aria-pressed={paymentMethod === method}
+												onClick={() => setPaymentMethod(method)}
+											>
+												{label}
+											</button>
+										))}
+									</div>
+									<button className="min-h-11 cursor-not-allowed rounded-lg border border-dashed border-[#294572] bg-[#07142e] px-3 text-sm font-bold text-slate-500" type="button" disabled aria-disabled="true">
+										Visa / Debit card <span className="ml-2 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300">Coming soon</span>
+									</button>
+									<label className="text-xs font-semibold text-slate-300" htmlFor="paymentMethod">Select payment method</label>
+									<select
+										className="h-11 rounded-lg border border-[#294572] bg-[#07142e] px-3 text-sm text-white outline-none focus:border-sky-400"
+										id="paymentMethod"
+										name="paymentMethod"
+										value={paymentMethod}
+										onChange={(event) => {
+											const value = event.target.value;
+											setPaymentMethod(value === 'payoneer' || value === 'wipay' || value === 'paypal' || value === 'wallet' || value === 'crypto' ? value : 'local');
+										}}
+									>
+										<option value="local">Local transfer</option>
+										<option value="crypto">Crypto: Bitcoin / USDT (Pending Verification)</option>
+										<option value="payoneer">Payoneer</option>
+										<option value="wipay">WiPay</option>
+										<option value="paypal">PayPal</option>
+										<option value="wallet">Wallet credit</option>
+										<option value="card-soon" disabled>Visa / Debit card — Coming soon</option>
+									</select>
+									{paymentMethod === 'crypto' && (
+										<div className="grid gap-3 rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/20 to-amber-950/30 p-4">
+											<div className="flex items-center justify-between gap-2">
+												<p className="text-sm font-bold text-white">Pay with Crypto</p>
+												<span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-[#1a1100]">{formatPrice(orderTotal)} USD</span>
+											</div>
+											<ol className="grid list-decimal gap-1 pl-4 text-xs leading-5 text-amber-100/90">
+												<li>Send the exact total in {hasBtcDetails && hasUsdtDetails ? 'Bitcoin (BTC) or USDT' : hasBtcDetails ? 'Bitcoin (BTC)' : 'USDT'} to the address below.</li>
+												<li>Paste the transaction ID (TXID) and send your request.</li>
+												<li>Your order stays Pending Verification until payment is checked. A TXID alone is not proof of payment.</li>
+											</ol>
+											{hasBtcDetails && (
+												<div className="grid gap-2 rounded-lg border border-amber-300/15 bg-[#07142e] p-3 text-xs">
+													<p className="font-semibold text-amber-100">Pay with Bitcoin (BTC)</p>
+													<div className="flex items-center gap-2 rounded-lg border border-[#294572] bg-[#081630] p-2">
+														<code className="min-w-0 flex-1 break-all font-mono text-xs text-slate-100">{cryptoPayment.btcAddress}</code>
+														<button
+															className="shrink-0 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-[#1a1100] transition hover:bg-amber-400"
+															type="button"
+															onClick={copyBtcAddress}
+														>
+															{btcCopied ? 'Copied' : 'Copy'}
+														</button>
+													</div>
+													<p className="text-slate-400">Bitcoin network only. Sending any other coin or network to this address will lose the funds.</p>
+												</div>
+											)}
+											{hasUsdtDetails && (
+											<div className="grid gap-2 rounded-lg border border-amber-300/15 bg-[#07142e] p-3 text-xs">
+												<p><span className="text-slate-400">USDT network:</span> <strong className="text-white">{cryptoPayment.usdtNetwork}</strong></p>
+												<p className="break-all"><span className="text-slate-400">USDT address:</span> <strong className="text-white">{cryptoPayment.usdtAddress}</strong></p>
+												<p className="break-all"><span className="text-slate-400">Binance Pay ID:</span> <strong className="text-white">{cryptoPayment.binancePayId}</strong></p>
+											</div>
+											)}
+											{hasUsdtDetails && !cryptoPayment.qrImagePath.includes('UPDATE_WITH') && (
+												<img className="mx-auto max-h-48 rounded-lg bg-white p-2" src={cryptoPayment.qrImagePath} alt="USDT TRC20 payment QR code" />
+											)}
+											{!hasUsdtDetails && !hasBtcDetails && (
+												<p className="rounded border border-amber-500/30 p-2 text-xs text-amber-100" role="status">Replace the crypto payment placeholders in src/data/cryptoPayment.ts before accepting payment.</p>
+											)}
+											{cart.some((item) => item.price === null) && (
+												<p className="rounded border border-amber-500/30 p-2 text-xs text-amber-100" role="status">One or more cart items need a confirmed price before crypto payment can be submitted.</p>
+											)}
+											<label className="grid gap-2 text-xs font-semibold text-slate-300">
+												Transaction ID (TXID)
+												<input
+													className="h-11 rounded-lg border border-[#294572] bg-[#081630] px-3 text-sm text-white outline-none focus:border-sky-400"
+													autoComplete="off"
+													maxLength={200}
+													minLength={6}
+													required
+													value={cryptoTxid}
+													onChange={(event) => setCryptoTxid(event.target.value)}
+													placeholder="Enter the transaction reference after sending payment"
+												/>
+											</label>
+										</div>
+									)}
+										{paymentMethod === 'paypal' && (
+											<div className="grid gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-xs leading-5 text-blue-100" role="status">
+												<p>Send <strong className="text-white">{formatPrice(orderTotal)} USD</strong> to <strong className="break-all text-white">{paypalPayment.email}</strong> 												using PayPal <strong className="text-white">Goods &amp; Services</strong>. One tap below sends your order and opens PayPal.</p>
+																							</div>
+										)}
+										{paymentMethod === 'payoneer' && (
+											<div className="grid gap-3 rounded-xl border border-orange-400/40 bg-gradient-to-br from-orange-500/20 to-orange-900/20 p-4 text-xs leading-5 text-orange-100" role="group" aria-label="Payoneer invoice payment type">
+												<div className="flex items-center justify-between gap-2">
+													<strong className="text-sm text-white">Payoneer payment link</strong>
+													<span className="rounded-full bg-orange-500 px-2 py-0.5 text-[11px] font-bold text-white">{formatPrice(orderTotal)} USD</span>
+												</div>
+												<ol className="grid list-decimal gap-1 pl-4">
+													<li>Choose Visa / Debit card or Bank transfer below.</li>
+													<li>Send your request for approval. Unconfirmed prices require a quote.</li>
+													<li>After approval, we will email a Payoneer link. Your payment must be verified before processing.</li>
+												</ol>
+												<div className="grid grid-cols-2 gap-2">
+													{([['card', 'Visa / Debit card'], ['bank', 'Bank transfer']] as const).map(([value, label]) => (
+														<button
+															className={`min-h-10 rounded-lg border px-3 text-xs font-bold transition ${payoneerMethod === value ? 'border-orange-300 bg-orange-500 text-white' : 'border-orange-500/40 text-orange-100 hover:border-orange-300'}`}
+															key={value}
+															type="button"
+															aria-pressed={payoneerMethod === value}
+															onClick={() => setPayoneerMethod(value)}
+														>
+															{label}
+														</button>
+													))}
+												</div>
+												<p>No payment is collected here.</p>
+											</div>
+										)}
+										{paymentMethod === 'wipay' && (
+											<p className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100" role="status">
+												Select WiPay to request current payment instructions after you send your order. No payment is collected here.
+											</p>
+										)}
+										{paymentMethod === 'wallet' && (
+										<p className="rounded-lg border border-sky-800/70 bg-sky-950/30 p-3 text-xs leading-5 text-sky-100" role="status">
+											{user
+												? `Available balance: ${formatWalletBalance(walletBalance)}. The server will verify catalog prices and balance before payment.`
+												: 'Sign in to pay from your wallet.'}
+												{(hasUnpricedDevices || hasUnpricedRepairs || hasUnpricedCredits) && ' Items without confirmed prices cannot be paid from the wallet; request a quote separately.'}
+										</p>
+									)}
+									{paymentMethod === 'local' && (
+										<div className="flex gap-2" aria-label="Choose local transfer method">
+											{(['lynk'] as const).map((rail) => (
+												<button
+													className={`min-h-8 rounded-md border px-3 text-xs font-semibold ${localRail === rail ? 'border-sky-600 bg-sky-950 text-sky-200' : 'border-[#294572] text-slate-400 hover:text-white'}`}
+													key={rail}
+													type="button"
+													aria-pressed={localRail === rail}
+													onClick={() => setLocalRail(rail)}
+												>
+													{rail.toUpperCase()}
+												</button>
+											))}
+										</div>
+									)}
+								</div>
+							)}
+							{guestCheckout && !user && (
+								<p className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs leading-5 text-emerald-100" role="status">
+									Guest checkout sends your order to us and does not save it to account history. Crypto and wallet payments require sign-in.
+								</p>
+							)}
+							<p className="mt-5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900" role="note">
+								<strong>Wrong-order warning:</strong> A wrong serial number, an unsupported model or the wrong product may result in a failed order and may not be refundable. Orders normally cannot be cancelled once processing has started. Check every detail before payment.
+							</p>
 							<button
-								className={`mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 ${paymentMethod === 'wallet' ? 'bg-sky-500 text-[#03142a] hover:bg-sky-300' : 'bg-[#27ce79] text-[#032216] hover:bg-[#43e28f]'}`}
+								className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 ${paymentMethod === 'wallet' ? 'bg-sky-500 text-[#03142a] hover:bg-sky-300' : paymentMethod === 'paypal' ? 'bg-[#0070ba] text-white hover:bg-[#005ea6]' : 'bg-[#27ce79] text-[#032216] hover:bg-[#43e28f]'}`}
 								type="submit"
 								disabled={cart.length === 0 || checkoutBusy}
 							>
-								<span>{checkoutBusy ? 'Processing…' : paymentMethod === 'wallet' ? 'Pay with wallet credit' : paymentMethod === 'crypto' ? 'Submit for payment verification' : paymentMethod === 'payoneer' ? 'Request Payoneer invoice' : paymentMethod === 'wipay' ? 'Request WiPay payment instructions' : hasWholesale ? 'Send service request' : hasDevices && hasRepairs ? 'Send combined request' : hasDevices ? 'Enquire on WhatsApp' : 'Send repair request'}</span>
+								<span>{checkoutBusy ? 'Processing…' : paymentMethod === 'wallet' ? 'Pay with wallet credit' : paymentMethod === 'crypto' ? 'Submit for payment verification' : paymentMethod === 'payoneer' ? 'Request Payoneer invoice' : paymentMethod === 'paypal' ? 'Pay with PayPal' : paymentMethod === 'wipay' ? 'Request WiPay payment instructions' : hasWholesale ? 'Send service request' : hasDevices && hasRepairs ? 'Send combined request' : hasDevices ? 'Send order request' : 'Send repair request'}</span>
 								<ArrowIcon />
 							</button>
 							{checkoutNotice && (
@@ -2394,7 +2722,7 @@ export default function App() {
 								</p>
 							)}
 							<p className="mt-3 text-center text-[11px] text-slate-500">
-								{paymentMethod === 'wallet' ? 'Wallet orders are priced and charged securely on the server.' : paymentMethod === 'crypto' ? 'Crypto orders remain pending until an administrator verifies the transaction.' : paymentMethod === 'payoneer' ? 'A Payoneer invoice with a unique reference will be sent after you submit your order request.' : paymentMethod === 'wipay' ? 'Current WiPay payment instructions will be provided after you send your order request.' : 'No payment is collected here.'}
+								{paymentMethod === 'wallet' ? 'Wallet orders are priced and charged securely on the server.' : paymentMethod === 'crypto' ? 'Crypto orders remain pending until an administrator verifies the transaction.' : paymentMethod === 'payoneer' ? 'Your request is reviewed before a Payoneer payment link is emailed. No payment is collected here.' : paymentMethod === 'wipay' ? 'Current WiPay payment instructions will be provided after you send your order request.' : paymentMethod === 'paypal' ? 'Your order details are sent to us and PayPal opens with the total filled in.' : 'No payment is collected here.'}
 							</p>
 								</div>
 							</details>
@@ -2456,11 +2784,30 @@ export default function App() {
 					EXCLUSIVE MOBILE SOLUTIONS <span className="px-2 text-sky-400">·</span> DEVICE CARE, DONE RIGHT
 				</footer>
 			</div>
+			{cart.length > 0 && (
+				<div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden" role="status" aria-live="polite">
+					<div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+						<div className="min-w-0">
+							<p className="text-xs font-bold uppercase tracking-wider text-slate-500">Your request</p>
+							<p className="truncate text-sm font-semibold text-slate-900">
+								{cart.length} {cart.length === 1 ? 'item' : 'items'} · {formatPrice(orderTotal)} USD
+							</p>
+						</div>
+						<button
+							className="min-h-11 shrink-0 rounded-lg bg-sky-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+							type="button"
+							onClick={() => document.getElementById('checkout-summary')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+						>
+							Review request
+						</button>
+					</div>
+				</div>
+			)}
 			<a
 				href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent('Hello, I have a question about your services.')}`}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="fixed bottom-5 left-5 z-50 grid h-12 w-12 place-items-center rounded-full bg-emerald-500 text-white shadow-xl transition hover:scale-105 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-[#050d22]"
+				className={`fixed ${cart.length > 0 ? 'bottom-24 lg:bottom-5' : 'bottom-5'} left-5 z-50 grid h-12 w-12 place-items-center rounded-full bg-emerald-500 text-white shadow-xl transition hover:scale-105 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-[#050d22]`}
 				aria-label="Chat with support on WhatsApp"
 				title="Chat with support on WhatsApp"
 			>
@@ -2472,7 +2819,7 @@ export default function App() {
 				href="https://t.me/techfix_pro"
 				target="_blank"
 				rel="noopener noreferrer"
-				className="fixed bottom-24 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#229ED9] text-white shadow-xl transition hover:scale-105 hover:bg-[#1b85b8] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#050d22]"
+				className={`fixed ${cart.length > 0 ? 'bottom-24 lg:bottom-5' : 'bottom-5'} right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#229ED9] text-white shadow-xl transition hover:scale-105 hover:bg-[#1b85b8] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#050d22]`}
 				aria-label="Chat with support on Telegram"
 				title="Chat with support on Telegram"
 			>

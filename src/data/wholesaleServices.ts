@@ -9,6 +9,8 @@ export type WholesaleService = {
 	description: string;
 	logo?: string;
 	requestOnly?: boolean;
+	identifierType?: 'imei' | 'account';
+	identifierLabel?: string;
 };
 
 export const wholesaleServices: WholesaleService[] = [
@@ -23,28 +25,6 @@ export const wholesaleServices: WholesaleService[] = [
 		description: 'Information check for supported Google Pixel devices. Requests are handled separately; the displayed per-check price is below the checkout minimum.',
 		logo: '/images/tools/google-pixel.svg',
 		requestOnly: true,
-	},
-	{
-		id: 'google-pixel-carrier-unlock-tool',
-		title: 'Google Pixel Carrier Unlock Windows Tool',
-		tags: ['Google Pixel', 'Pixel', 'Carrier Unlock', 'Windows Tool'],
-		category: 'Google Pixel Services',
-		price: 18.9,
-		time: 'Request processing',
-		status: 'EXPRESS',
-		description: 'Carrier unlock service for eligible Pixel devices, subject to carrier approval and device eligibility.',
-		logo: '/images/tools/google-pixel.svg',
-	},
-	{
-		id: 'pixel-service-tool-refill-credits',
-		title: 'Pixel Service Tool - Refill Credits',
-		tags: ['Google Pixel', 'Pixel', 'Service Tool', 'Credits'],
-		category: 'Google Pixel Services',
-		price: 0.55,
-		time: 'Digital',
-		status: 'INSTANT',
-		description: 'Refill credits for an existing Pixel Service Tool account. Use only with an account you own or are authorized to manage.',
-		logo: '/images/tools/google-pixel.svg',
 	},
 	{
 		id: 'gpixel-pro-credits-new-user',
@@ -169,6 +149,16 @@ export const wholesaleServices: WholesaleService[] = [
 		description: '100% Turn off Find My iPad / Watch via SN/WiFi serial replacement.',
 	},
 	{
+		id: 'apple-iphone-carrier-warranty-fmi-simlock-check-s3',
+		title: 'Apple iPhone Carrier + Warranty + FMI + SIMlock Check S-3 (IMEI / SN)',
+		tags: ['Apple', 'iPhone', 'Carrier Check', 'Warranty', 'FMI', 'SIMlock', 'IMEI Check', 'Check'],
+		category: 'FMI & iCloud Services',
+		price: 1,
+		time: 'Instant',
+		status: 'INSTANT',
+		description: 'Apple iPhone carrier, warranty, Find My iPhone (FMI) and SIM lock status check by IMEI or serial number.',
+	},
+	{
 		id: 'att-nck-clean-pro',
 		title: 'USA AT&T NCK / Clean Pro iPhone & Samsung Unlock',
 		tags: ['AT&T', 'AT&T Clean Pro', 'AT&T NCK', 'Sold Date 60 Days'],
@@ -177,6 +167,16 @@ export const wholesaleServices: WholesaleService[] = [
 		time: '1-6 Hours',
 		status: 'SPECIAL',
 		description: 'Official AT&T unlock portal. Supports active on another account devices.',
+	},
+	{
+		id: 'att-past-due-iphone-samsung',
+		title: 'AT&T Past Due - iPhone & Samsung (All Models)',
+		tags: ['AT&T', 'Past Due', 'Apple iPhone', 'Samsung', 'All Models', 'IMEI'],
+		category: 'Past Due Services',
+		price: 30,
+		time: 'Request processing',
+		status: 'SPECIAL',
+		description: 'AT&T past-due service for all iPhone and Samsung models. Enter the device IMEI before ordering.',
 	},
 	{
 		id: 'latin-america-carrier-unlock',

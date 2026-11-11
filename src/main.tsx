@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { loadLiveChat } from './utils/liveChat';
+import { inject } from '@vercel/analytics';
 
+inject();
 loadLiveChat();
 
 createRoot(document.getElementById('root')!).render(

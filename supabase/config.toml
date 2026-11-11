@@ -15,5 +15,8 @@ verify_jwt = false
 [functions.create-payoneer-order-checkout]
 verify_jwt = true
 
+[functions.create-payoneer-topup-checkout]
+verify_jwt = true
+
 [functions.payoneer-notification]
 verify_jwt = false

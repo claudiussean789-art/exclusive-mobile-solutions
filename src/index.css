@@ -3,10 +3,10 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { font-family: 'DM Sans', Arial, sans-serif; color: #f4f7fc; background: #050d22; font-synthesis: none; }
+:root { font-family: 'DM Sans', Arial, sans-serif; color: #0f172a; background: #fff; font-synthesis: none; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; background: #050d22; }
+body { margin: 0; min-width: 320px; background: #fff; }
 button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
@@ -104,10 +104,7 @@ h1 span { color: #06aef4; }
 main.min-h-screen {
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 8% 18%, rgba(12, 125, 213, .18), transparent 25rem),
-    radial-gradient(circle at 92% 38%, rgba(100, 54, 214, .13), transparent 28rem),
-    #050d22;
+  background: #fff;
 }
 
 main.min-h-screen::before {

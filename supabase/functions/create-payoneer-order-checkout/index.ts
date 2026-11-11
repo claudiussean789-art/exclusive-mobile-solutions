@@ -43,6 +43,10 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (orderError) throw orderError;
     if (!order || order.payment_method !== 'payoneer') return json({ error: 'Payoneer order request was not found.' }, 404);
+    const { data: manualRequest, error: manualError } = await admin.from('payoneer_orders')
+      .select('id').eq('wallet_order_id', order.id).maybeSingle();
+    if (manualError) throw manualError;
+    if (manualRequest) return json({ error: 'This order requires manual Payoneer approval.' }, 409);
     if (order.status !== 'requested' || order.total === null || Number(order.total) <= 0) {
       return json({ error: 'This order contains items without confirmed prices. Request a quote before paying with Payoneer.' }, 409);
     }

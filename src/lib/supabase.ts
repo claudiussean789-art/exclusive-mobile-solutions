@@ -33,7 +33,7 @@ export type WalletTopup = {
 	id: string;
 	amount: number | string;
 	currency: string;
-	method: 'paypal' | 'manual';
+	method: 'paypal' | 'manual' | 'payoneer';
 	status: 'pending' | 'completed' | 'cancelled';
 	receipt_path: string | null;
 	created_at: string;
@@ -54,6 +54,7 @@ export type WalletOrder = {
 	currency: string;
 	payment_method: string;
 	status: 'paid' | 'requested' | 'pending' | 'pending_verification' | 'cancelled';
+	fulfillment_status?: 'pending' | 'in_progress' | 'completed' | 'failed';
 	payment_reference: string | null;
 	crypto_txid: string | null;
 	created_at: string;
