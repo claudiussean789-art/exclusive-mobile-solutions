@@ -72,4 +72,12 @@ PayPal wallet top-ups and priced catalog orders use PayPal checkout. Crypto is a
 
 Edit `src/data/cryptoPayment.ts` to set the public USDT TRC20 receiving address, Binance Pay ID, and a QR image path under `public/`. The file currently contains placeholders, so replace them before accepting crypto transfers. Customers must sign in, submit a transaction ID, and have a confirmed price for every selected item. The `submit_crypto_order` RPC saves the server-priced order as `pending_verification`; a submitted TXID is only a customer claim and does not verify payment or add wallet credit.
 
-Review `wallet_orders` in the Supabase dashboard for `payment_method = crypto` and `status = pending_verification`. Independently verify the transaction in Binance Pay or on the correct chain before changing the row's status to `paid`. Only project administrators should make this change. No Telegram bot notification or payment-verification integration is configured.
+Review `wallet_orders` in the Supabase dashboard for `payment_method = crypto` and `status = pending_verification`. Independently verify the transaction in Binance Pay or on the correct chain before changing the row's status to `paid`. Only project administrators should make this change. Telegram notifications do not verify crypto payments.
+
+## Telegram customer support bot
+
+Telegram handling runs as Vercel Edge Functions so it can use the project's Vercel environment variables. The customer bot replies to private messages using OpenAI. It does not access accounts, confirm payments, or guarantee eligibility or timing; uncertain and account-specific questions are directed to support. Customer message text is sent to OpenAI and is not retained by this app.
+
+In Vercel Project Settings → Environment Variables, set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, and `OPENAI_API_KEY`. The alert endpoint also uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, which should already be configured for the app. Never prefix Telegram or OpenAI secrets with `VITE_`; rotate any key that has been exposed.
+
+After deploying the project, register the Telegram webhook to `https://exclusive-mobile-solutions.vercel.app/api/telegram-webhook`. Use the same `TELEGRAM_WEBHOOK_SECRET` value in the Telegram `setWebhook` request so Telegram sends it in the verification header. Test by sending `/start` and then a service question to the bot.

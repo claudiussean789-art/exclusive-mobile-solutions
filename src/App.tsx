@@ -2472,7 +2472,7 @@ export default function App() {
 				href="https://t.me/techfix_pro"
 				target="_blank"
 				rel="noopener noreferrer"
-				className="fixed bottom-5 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#229ED9] text-white shadow-xl transition hover:scale-105 hover:bg-[#1b85b8] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#050d22]"
+				className="fixed bottom-24 right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#229ED9] text-white shadow-xl transition hover:scale-105 hover:bg-[#1b85b8] focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 focus:ring-offset-[#050d22]"
 				aria-label="Chat with support on Telegram"
 				title="Chat with support on Telegram"
 			>

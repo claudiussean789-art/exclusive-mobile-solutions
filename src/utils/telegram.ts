@@ -1,27 +1,24 @@
-export async function sendTelegramAlert(message: string): Promise<void> {
-  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
+import { getSupabase } from '../lib/supabase';
 
-  if (!botToken || !chatId) {
-    console.warn('Telegram credentials missing in VITE environment variables.');
-    return;
-  }
+type TelegramAlert =
+  | { type: 'registration' }
+  | { type: 'topup'; topupId: string };
 
+export async function sendTelegramAlert(alert: TelegramAlert): Promise<void> {
   try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML',
-      }),
-    });
+    const { data: { session }, error: sessionError } = await getSupabase().auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!session) return;
 
-    const data = await response.json();
-    if (!data.ok) {
-      console.error('Telegram API Error:', data.description);
-    }
+    const response = await fetch('/api/telegram-alert', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(alert),
+    });
+    if (!response.ok) console.error('Telegram alert failed:', response.status);
   } catch (err) {
     console.error('Failed to send Telegram alert:', err);
   }

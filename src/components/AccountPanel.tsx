@@ -157,16 +157,12 @@ export default function AccountPanel({
 					},
 				});
 				if (error) throw error;
-				if (data.session) onUserChange(data.session.user);
-				else setSuccessMessage('Your account was created. Check your email for the confirmation link, then sign in using your email and password.');
-
-				await sendTelegramAlert(
-					`<b>🔔 New Account Registration</b>\n\n` +
-					`<b>Email:</b> ${email.trim()}\n` +
-					`<b>Full Name:</b> ${fullName.trim() || 'N/A'}\n` +
-					`<b>Username:</b> ${normalizedUsername}\n` +
-					`<b>Portal:</b> Exclusive Mobile Solutions`
-				);
+				if (data.session) {
+					onUserChange(data.session.user);
+					await sendTelegramAlert({ type: 'registration' });
+				} else {
+					setSuccessMessage('Your account was created. Check your email for the confirmation link, then sign in using your email and password.');
+				}
 			} else {
 				const { data, error } = await client.auth.signInWithPassword({ email: email.trim(), password });
 				if (error) throw error;
@@ -232,15 +228,8 @@ export default function AccountPanel({
 			if (error) throw error;
 if (!topup) throw new Error('The top-up request was not created.');
 
-// Trigger Telegram notification for any payment method submission
 try {
-  await sendTelegramAlert(
-    `<b>🚨 NEW DEPOSIT REQUEST</b>\n\n` +
-    `<b>Amount:</b> $${value} USD\n` +
-    `<b>Method:</b> ${topupMethod}\n` +
-    `<b>Reference:</b> <code>${manualReference || 'N/A'}</code>\n` +
-    `<b>Status:</b> Pending Verification`
-  );
+	await sendTelegramAlert({ type: 'topup', topupId: topup.id });
 } catch (tgErr) {
   console.error("Telegram notification failed:", tgErr);
 }
