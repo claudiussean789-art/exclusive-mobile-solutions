@@ -34,6 +34,7 @@ const storeCategories: { label: string; orderType: OrderType }[] = [
 	{ label: 'FRP Services', orderType: 'repairs' },
 	{ label: 'iCloud Remove', orderType: 'icloud' },
 	{ label: 'Wholesale Services', orderType: 'wholesale' },
+	{ label: 'Pixel Service', orderType: 'wholesale' },
 	{ label: 'Digital Gift Cards', orderType: 'giftcards' },
 ];
 
@@ -53,6 +54,8 @@ type RepairService = {
 	name: string;
 	category: string;
 	price: number | null;
+	deliveryTime?: string;
+	description?: string;
 };
 
 type CartItem = {
@@ -104,7 +107,7 @@ const serverCreditServices: ServerCreditService[] = [
 		products: [
 			{ id: 'unlock-3-months', name: '3 Months Activation (90 Days)', description: 'UnlockTool Activation – Official Reseller', price: 18, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
 			{ id: 'unlock-6-months', name: '6 Months Activation (180 Days)', description: 'UnlockTool Activation – Official Reseller', price: 27, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
-			{ id: 'unlock-12-months', name: '12 Months Activation (360 Days)', description: 'UnlockTool Activation – Official Reseller', price: 45, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '5–15 Minutes', summary: 'UnlockTool 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your UnlockTool account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
+			{ id: 'unlock-12-months', name: 'UnlockTool - Instant Activation', description: 'UnlockTool Official Digital License', price: 45, icon: 'UT', image: '/images/tools/unlocktool.svg', deliveryTime: '1 - 5 Mins', summary: '1-Year official digital license for MTK/Qualcomm flashing, FRP resets & Mi Cloud.', fullDescription: 'Activate your UnlockTool account with a 1-Year official digital license for MTK/Qualcomm flashing, FRP resets, and Mi Cloud.', highlighted: true },
 			{ id: 'unlock-rent-6-hours', name: 'Rent [6 Hours] – Instant Auto API', description: 'All GSM Tools Rent Service – Instant Auto API', price: 1.2, icon: 'RENT', image: '/images/tools/unlocktool.svg', deliveryTime: 'Instant', summary: 'UnlockTool 6 Hours rent service with instant auto API distribution.', fullDescription: 'Temporary six-hour access to UnlockTool for quick servicing jobs.' },
 		],
 		targetLabel: 'Tool account email',
@@ -118,7 +121,7 @@ const serverCreditServices: ServerCreditService[] = [
 		products: [
 			{ id: 'dft-3-months', name: '3 Months Activation (90 Days)', description: 'DFT Pro Activation – Official Reseller', price: 18, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 3 Months / 90 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 3 Months Activation (90 Days) license for supported mobile servicing work.' },
 			{ id: 'dft-6-months', name: '6 Months Activation (180 Days)', description: 'DFT Pro Activation – Official Reseller', price: 27, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 6 Months / 180 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 6 Months Activation (180 Days) license for supported mobile servicing work.' },
-			{ id: 'dft-12-months', name: '12 Months Activation (360 Days)', description: 'DFT Pro Activation – Official Reseller', price: 45, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '5–15 Minutes', summary: 'DFT Pro 12 Months / 360 Days account activation for supported GSM servicing operations. Check current device support before ordering.', fullDescription: 'Activate your DFT Pro account with the 12 Months Activation (360 Days) license for supported mobile servicing work.', highlighted: true },
+			{ id: 'dft-12-months', name: 'DFT Pro License', description: 'Device Firmware Tool 1-Year Activation', price: 42, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: '1 - 10 Mins', summary: 'Device Firmware Tool 1-year activation for Xiaomi, Huawei, MTK & Qualcomm repair.', fullDescription: 'Activate your DFT Pro account for one year for supported Xiaomi, Huawei, MTK, and Qualcomm device repair.', highlighted: true },
 			{ id: 'dft-rent-6-hours', name: 'Rent [6 Hours] – Instant Auto API', description: 'DFT Pro Rent Service – Instant Auto API', price: 1.2, icon: 'DFT', image: '/images/tools/dft-pro.svg', deliveryTime: 'Instant', summary: 'DFT Pro 6 Hours rent service with instant auto API distribution.', fullDescription: 'Temporary six-hour access to DFT Pro for supported servicing jobs.' },
 		],
 		targetLabel: 'Tool account email',
@@ -155,41 +158,92 @@ const deviceBrands: DeviceBrand[] = [
 	{
 		name: 'T-Mobile / Sprint / MetroPCS',
 		devices: [
-			{ id: 'tmobile-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'tmobile-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
+			{ id: 'tmobile-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 0–5 days)', price: 32.95 },
+			{ id: 'tmobile-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 0–5 days)', price: 69.95 },
+			{ id: 'tmobile-motorola-xt-2513-1', name: 'Motorola XT-2513-1 Carrier Unlock', price: 15 },
 		],
 	},
 	{
 		name: 'AT&T',
 		devices: [
-			{ id: 'att-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'att-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
-			...[
-				['s10', 'Galaxy S10'], ['s10-plus', 'Galaxy S10+'], ['s20', 'Galaxy S20'], ['s20-plus', 'Galaxy S20+'], ['s20-ultra', 'Galaxy S20 Ultra'],
-				['s21', 'Galaxy S21'], ['s21-plus', 'Galaxy S21+'], ['s21-ultra', 'Galaxy S21 Ultra'], ['s22', 'Galaxy S22'], ['s22-plus', 'Galaxy S22+'], ['s22-ultra', 'Galaxy S22 Ultra'],
-			].map(([slug, model]): Device => ({ id: `att-nck-samsung-${slug}`, name: `${model} NCK Unlock`, price: 40 })),
+			{ id: 'att-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'att-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'att-samsung-s10-s22-nck', name: 'Samsung Galaxy S10 – S22 Ultra NCK Code Unlock (1–5 days)', price: 40 },
+			{ id: 'att-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'att-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
 		],
 	},
 	{
-		name: 'Verizon',
+		name: 'Boost US',
 		devices: [
-			{ id: 'verizon-11-pro-max', name: '11 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-12-pro-max', name: '12 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-13-pro-max', name: '13 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-14-pro-max', name: '14 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-15-pro-max', name: '15 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-16-pro-max', name: '16 Pro Max Carrier Unlock', price: 250 },
-			{ id: 'verizon-17-pro-max', name: '17 Pro Max Carrier Unlock', price: 250 },
+			{ id: 'boost-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'boost-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+		],
+	},
+	{
+		name: 'Spectrum',
+		devices: [
+			{ id: 'spectrum-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'spectrum-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'spectrum-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'spectrum-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+		],
+	},
+	{
+		name: 'Dish',
+		devices: [
+			{ id: 'dish-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'dish-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'dish-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'dish-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+		],
+	},
+	{
+		name: 'Xfinity',
+		devices: [
+			{ id: 'xfinity-status-check-pro', name: 'XFINITY USA STATUS CHECK - PRO', price: 1 },
+			{ id: 'xfinity-iphone-17-clean-financed', name: 'Xfinity iPhone Unlock (USA) — All Models 17 Series | Clean & Financed - Direct Source', price: 136.5 },
+			{ id: 'xfinity-iphone-6-16-clean-financed', name: 'Xfinity iPhone Unlock (USA) — All Models 6 to 16 Series | Clean & Financed - Direct Source', price: 122.5 },
+			{ id: 'xfinity-unlock-eligibility-check', name: 'US Xfinity Unlock Eligibility + ESN Status Check | AUTO API', price: 1 },
+		],
+	},
+	{
+		name: 'Tracfone',
+		devices: [
+			{ id: 'tracfone-iphone-all-models-clean-active', name: 'HOT USA Tracfone / StraightTalk iPhone All Models up to 17 Series (Clean & Active +12 months, 0–60 minutes)', price: 10.95 },
+			{ id: 'tracfone-all-brands-nck', name: 'All Brands - Any IMEI from Tracfone / StraightTalk USA (NCK Only, 1–3 days)', price: 15 },
+		],
+	},
+	{
+		name: 'US Cricket',
+		devices: [
+			{ id: 'cricket-iphone-4-15-group', name: 'US Cricket Semi Premium Unlock | iPhone 4-15 Series', price: 136.5 },
+			{ id: 'cricket-iphone-16-group', name: 'US Cricket Semi Premium Unlock | iPhone 16 Series', price: 157.5 },
+			{ id: 'cricket-iphone-17-group', name: 'US Cricket Semi Premium Unlock | iPhone 17 Series', price: 168 },
+			{ id: 'cricket-6-month-activated-clean', name: 'Cricket USA - iPhone & Generic { Only 6 Month Activated 100% Unlock } Clean + Active IMEI Supported', price: 2 },
+			{ id: 'cricket-all-models-clean-active', name: 'Cricket USA - iPhone & Generic All Models Supported (Clean IMEI ONLY & Activated 6+ Months)', price: 4 },
+			{ id: 'cricket-unlock-eligibility-check', name: 'Cricket US Unlock Eligibility Check [iPhone & Generic] Official Checker', price: 1 },
+		],
+	},
+	{ name: 'Verizon', devices: [
+		{ id: 'verizon-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
+		{ id: 'verizon-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+	] },
+	{ name: 'US Cellular', devices: [
+		{ id: 'us-cellular-policy-unlock', name: 'US Cellular Locked Policy - Unlock iPhone All Models up to 18 Series + iPhone Duo (Clean IMEI)', price: 79.95 },
+	] },
+	{
+		name: 'US Reseller Flex',
+		devices: [
+			{ id: 'us-reseller-flex-policy-unlock', name: 'US Reseller Flex Policy - Unlock iPhone All Models up to 18 Pro Max + iPhone Duo (Premium, only devices with Next Activation Policy)', price: 179.35 },
+		],
+	},
+	{
+		name: 'Samsung',
+		devices: [
+			{ id: 'sam-s22', name: 'Galaxy S22 Ultra', price: 550 },
+			{ id: 'samsung-usa-att-nck-s23-s26-fold7', name: 'Samsung USA AT&T All Models up to S23, S24, S25, S26 Series, Z Fold 5, Z Flip 5, Z Fold 6, Z Flip 6, Z Fold 7 Series (NCK Only)', price: 54 },
+			{ id: 'samsung-nck-s25fe-s26-fold8', name: 'Samsung All Models up to S25 FE, S26, Z Fold 8 (NCK Only)', price: 109.95 },
 		],
 	},
 	{
@@ -231,12 +285,6 @@ const deviceBrands: DeviceBrand[] = [
 		],
 	},
 	{
-		name: 'Samsung',
-		devices: [
-			{ id: 'sam-s22', name: 'Galaxy S22 Ultra', price: 550 },
-		],
-	},
-	{
 		name: 'Tecno',
 		devices: [
 			{ id: 'tec-camon-20', name: 'Tecno Camon 20 Pro', price: 220 },
@@ -248,6 +296,7 @@ const deviceBrands: DeviceBrand[] = [
 		devices: [
 			{ id: 'xiaomi-redmi-12', name: 'Xiaomi Redmi Note 12', price: 190 },
 			{ id: 'xiaomi-13-pro', name: 'Xiaomi 13 Pro', price: 580 },
+			{ id: 'xiaomi-mi-account-removal-imei', name: 'Xiaomi Mi Account Removal by IMEI (0–3 days)', price: 54.95 },
 		],
 	},
 ];
@@ -256,9 +305,9 @@ const repairServices: RepairService[] = [
 	{ id: 'screen', name: 'Screen Replacement', category: 'Displays', price: 40 },
 	{ id: 'board', name: 'Board Repair / Micro-soldering', category: 'Logic Board', price: 65 },
 	{ id: 'software', name: 'Software Flash', category: 'Software', price: 25 },
-	{ id: 'galaxy-a54-frp', name: 'Galaxy A54 5G FRP Service', category: 'Samsung FRP', price: 35 },
-	{ id: 'samsung-frp-other', name: 'Samsung Galaxy FRP Service (Other Models)', category: 'Samsung FRP', price: 35 },
-	{ id: 'icloud-remove', name: 'iCloud Remove', category: 'iCloud Remove', price: null },
+	{ id: 'galaxy-a54-frp', name: 'Galaxy A54 5G FRP Service', category: 'Samsung FRP', price: 40 },
+	{ id: 'samsung-frp-other', name: 'Samsung FRP — Old Security (up to Jan 2023)', category: 'Samsung FRP', price: 20, deliveryTime: '5 - 15 Mins', description: 'Remote Samsung FRP service for devices with security patches up to January 2023.' },
+	{ id: 'icloud-remove', name: 'iCloud Remove', category: 'iCloud Remove', price: null, deliveryTime: '1 - 12 Hours', description: 'Contact for a quote for supported iCloud removal services.' },
 	{ id: 'port', name: 'Charging Port', category: 'Hardware', price: 30 },
 	{ id: 'battery', name: 'Battery Replacement', category: 'Hardware', price: 35 },
 ];
@@ -362,6 +411,7 @@ function TrashIcon() {
 
 export default function App() {
 	const [orderType, setOrderType] = useState<OrderType>('devices');
+	const [activeCategoryLabel, setActiveCategoryLabel] = useState('Network Unlocking');
 	const [searchQuery, setSearchQuery] = useState('');
 	const [cart, setCart] = useState<CartItem[]>([]);
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('crypto');
@@ -471,6 +521,7 @@ export default function App() {
 	const [wholesaleSearch, setWholesaleSearch] = useState('');
 	const chooseStoreCategory = (category: (typeof storeCategories)[number]) => {
 		setOrderType(category.orderType);
+		if (category.label) setActiveCategoryLabel(category.label);
 		document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	};
 	const headerSearchValue = orderType === 'wholesale' ? wholesaleSearch : searchQuery;
@@ -746,6 +797,8 @@ export default function App() {
 					<div className="min-w-0 flex-1">
 						<p className="text-[10px] font-bold uppercase tracking-wider text-sky-400">{service.category}</p>
 						<h3 className="mt-1 text-sm font-semibold text-slate-100 sm:text-base">{service.name}</h3>
+						{service.description && <p className="mt-1 text-xs text-slate-400">{service.description}</p>}
+						{service.deliveryTime && <p className="mt-1 text-xs text-slate-500">{service.deliveryTime}</p>}
 					</div>
 					<div className="flex shrink-0 flex-col items-end gap-2">
 						<strong className="text-right text-sm">{service.price === null ? 'Contact for quote' : `${formatPrice(service.price)} USD`}</strong>
@@ -1098,18 +1151,13 @@ export default function App() {
 	}
 
 	return (
-		<main className="min-h-screen bg-[#050d22] text-[#f4f7fc]">
-			<div className="promo-ticker-bar" aria-label="Announcements">
-				<a
-					className="ticker-content"
-					href="https://t.me/techfix_pro"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					🔥 <span className="promo-highlight">SPECIAL PROMO:</span> Fast Carrier Unlocks &amp; Digital Tool Credits | Fast FRP Service 24/7 | Get 5% Off First Order | Contact Us on Telegram!
+		<main className="storefront-page min-h-screen bg-slate-50 text-slate-900">
+			<div className="storefront-promo border-b border-blue-900/30 bg-[#0b1835] px-4 py-1.5 text-center text-[11px] text-blue-200 sm:text-xs">
+				<a className="hover:text-white" href="https://t.me/techfix_pro" rel="noreferrer" target="_blank">
+					<strong className="text-amber-300">🔥 SPECIAL PROMO:</strong> Fast Carrier Unlocks &amp; Digital Tool Credits | Fast FRP Service 24/7 | Get 5% Off First Order | Contact Us on Telegram!
 				</a>
 			</div>
-			<header className="sticky top-0 z-10 border-b border-blue-300/15 bg-[#050d22]/95 backdrop-blur">
+			<header className="storefront-header sticky top-0 z-10 border-b border-blue-300/15 bg-[#050d22]/95 backdrop-blur">
 				<div className="mx-auto flex min-h-[76px] w-[min(100%-2rem,1160px)] items-center justify-between gap-4">
 					<BrandLogo />
 					<label className="mx-2 hidden min-h-11 max-w-2xl flex-1 items-center gap-3 rounded-md bg-white px-4 text-slate-500 sm:flex">
@@ -1178,15 +1226,18 @@ export default function App() {
 						<SearchIcon />
 					</label>
 				</div>
-				<div className="border-t border-blue-300/15 bg-white">
+				<div className="border-t border-slate-200 bg-white">
 					<div className="mx-auto flex w-[min(100%-2rem,1160px)] items-center justify-between gap-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Browse by category">
 						{storeCategories.map((category) => (
 							<button
-								className={`min-h-12 shrink-0 border-b-2 px-2 text-sm font-semibold transition ${orderType === category.orderType ? 'border-sky-500 text-sky-700' : 'border-transparent text-slate-800 hover:text-sky-600'}`}
+								className={`min-h-12 shrink-0 border-b-2 px-2 text-sm font-semibold transition ${activeCategoryLabel === category.label && orderType === category.orderType ? 'border-sky-500 text-sky-700' : 'border-transparent text-slate-700 hover:text-sky-600'}`}
 								key={category.label}
 								type="button"
-								aria-pressed={orderType === category.orderType}
-								onClick={() => chooseStoreCategory(category)}
+								aria-pressed={activeCategoryLabel === category.label && orderType === category.orderType}
+								onClick={() => {
+									chooseStoreCategory(category);
+									if (category.label === 'Pixel Service') setWholesaleTag('Google Pixel');
+								}}
 							>
 								{category.label}
 							</button>
@@ -1235,39 +1286,41 @@ export default function App() {
 				/>
 			)}
 
-			<div className="mx-auto w-[min(100%-2rem,1120px)] pb-8" id="top">
-				<div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-blue-300/15 py-3 text-xs text-slate-400">
-					<p className="font-semibold text-slate-300">
-						<a className="hover:text-sky-300" href="#top">Home</a>
-						<span aria-hidden="true" className="mx-2 text-slate-600">/</span>
-						<span>Products &amp; Services</span>
-					</p>
+			<div className="storefront-content mx-auto w-[min(100%-2rem,1120px)] pb-8 pt-5" id="top">
+				<div className="storefront-intro mb-5">
+					<nav aria-label="Breadcrumb" className="mb-5 text-xs text-slate-400">
+						<a className="hover:text-sky-700" href="#top">Home</a>
+						<span className="mx-2">/</span>
+						<span className="font-semibold text-slate-500">Products &amp; Services</span>
+					</nav>
+					<div className="flex flex-wrap gap-2">
+						{['Google Pixel', 'FMI OFF for iPad WiFi', 'AT&T', 'T-Mobile — PRO', 'Mexico Nextel', 'iCloud'].map((tag) => (
+							<button
+								className="rounded-full border border-slate-200 bg-[#07142e] px-3 py-1.5 text-[11px] font-semibold text-slate-100 shadow-sm transition hover:border-sky-400 hover:bg-sky-700"
+								key={tag}
+								type="button"
+								onClick={() => {
+									if (tag === 'iCloud') {
+										chooseStoreCategory({ label: 'iCloud Remove', orderType: 'icloud' });
+									} else {
+										setWholesaleTag(tag);
+										chooseStoreCategory({ label: 'Wholesale Services', orderType: 'wholesale' });
+									}
+								}}
+							>
+								{tag}
+							</button>
+						))}
+					</div>
 				</div>
-				<div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Popular service filters">
-					{['Google Pixel', 'FMI OFF for iPad WiFi', 'AT&T', 'T-Mobile — PRO', 'Mexico Nextel', 'iCloud'].map((tag) => (
-						<button
-							className="shrink-0 rounded-full border border-[#294572] bg-[#091835] px-3 py-1.5 text-xs font-medium text-sky-200 transition hover:border-sky-400 hover:bg-sky-950"
-							key={tag}
-							type="button"
-							onClick={() => {
-								setOrderType('wholesale');
-								setWholesaleSearch('');
-								setWholesaleTag(tag);
-								document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-							}}
-						>
-							{tag}
-						</button>
-					))}
-				</div>
-				<section className="py-6 sm:py-8" aria-labelledby="page-title">
+				<section className="storefront-featured py-6 sm:py-8" aria-labelledby="page-title">
 					<h1 className="sr-only" id="page-title">Your local mobile specialists</h1>
 					<ServiceShowcase onOrder={(target) => chooseStoreCategory({ label: '', orderType: target })} />
 				</section>
 
 				<form onSubmit={handleWhatsAppCheckout}>
 					<div className={`grid items-start gap-8 ${cart.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_350px]' : ''}`}>
-						<section aria-labelledby="catalog-title">
+						<section className="storefront-catalog" aria-labelledby="catalog-title">
 							<div className={`mb-5 flex items-end justify-between gap-4 ${orderType === 'credits' ? 'hidden' : ''}`}>
 								<div>
 									<p className="mb-2 text-[11px] font-bold tracking-[.17em] text-sky-400">{orderType === 'devices' ? 'SHOP DEVICES' : orderType === 'repairs' ? 'BOOK A REPAIR' : orderType === 'icloud' ? 'ICLOUD' : orderType === 'giftcards' ? 'DIGITAL GIFT CARDS' : 'WHOLESALE CATALOG'}</p>
@@ -1341,6 +1394,23 @@ export default function App() {
 											})}
 										</div>
 									</div>
+									<section className="mb-5 flex flex-col gap-3 rounded-xl border border-orange-400/30 bg-orange-400/5 p-4 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="wholesale-frp-title">
+										<div>
+											<h4 className="text-sm font-bold text-orange-100" id="wholesale-frp-title">Samsung FRP Services</h4>
+											<p className="mt-1 text-xs text-slate-300">View the existing Samsung FRP services and model-specific options in Repairs.</p>
+										</div>
+										<button
+											className="min-h-9 w-fit rounded-lg border border-orange-300/50 px-3 text-xs font-bold text-orange-100 transition hover:bg-orange-400/10"
+											type="button"
+											onClick={() => {
+												setOrderType('repairs');
+												setSearchQuery('frp');
+												document.getElementById('catalog-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+											}}
+										>
+											View FRP services
+										</button>
+									</section>
 									{filteredWholesaleServices.length ? (
 										<div className="grid gap-3 sm:grid-cols-2" aria-live="polite">
 											{filteredWholesaleServices.map((service) => {
@@ -1434,7 +1504,7 @@ export default function App() {
 														{service.requestOnly ? (
 															<a
 																className={`inline-flex min-h-9 items-center rounded-lg border border-sky-500 px-3 text-xs font-bold text-sky-200 transition hover:bg-sky-500/10 ${isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '') ? '' : 'pointer-events-none opacity-50'}`}
-																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request a Google Pixel information check. Listed price: $${service.price.toFixed(4)} per check. IMEI / Serial: ${(wholesaleIdentifiers[service.id] ?? '').trim().toUpperCase()}`)}`}
+																href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello, I would like to request ${service.title}. Listed price: $${service.price.toFixed(4)} per check. IMEI / Serial: ${(wholesaleIdentifiers[service.id] ?? '').trim().toUpperCase()}`)}`}
 																target="_blank"
 																rel="noopener noreferrer"
 																aria-disabled={!isValidIcloudIdentifier(wholesaleIdentifiers[service.id] ?? '')}

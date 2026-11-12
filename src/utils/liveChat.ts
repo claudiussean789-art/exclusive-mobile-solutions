@@ -8,6 +8,12 @@ export const loadLiveChat = () => {
 		Tawk_LoadStart?: Date;
 	};
 	tawkWindow.Tawk_API = tawkWindow.Tawk_API || {};
+	tawkWindow.Tawk_API.customStyle = {
+		visibility: {
+			desktop: { position: 'tr', xOffset: '15px', yOffset: '80px' },
+			mobile: { position: 'tr', xOffset: '15px', yOffset: '80px' },
+		},
+	};
 	tawkWindow.Tawk_LoadStart = new Date();
 
 	const script = document.createElement('script');
