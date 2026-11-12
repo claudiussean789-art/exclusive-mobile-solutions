@@ -166,36 +166,36 @@ const deviceBrands: DeviceBrand[] = [
 	{
 		name: 'AT&T',
 		devices: [
-			{ id: 'att-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
-			{ id: 'att-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'att-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'att-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 1–14 days)', price: 170 },
 			{ id: 'att-samsung-s10-s22-nck', name: 'Samsung Galaxy S10 – S22 Ultra NCK Code Unlock (1–5 days)', price: 40 },
-			{ id: 'att-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
-			{ id: 'att-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+			{ id: 'att-group-iphone-15-16', name: 'iPhone 15 – 16 Series Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'att-group-iphone-17', name: 'iPhone 17 Series Unlock (Semi Premium, 1–14 days)', price: 315 },
 		],
 	},
 	{
 		name: 'Boost US',
 		devices: [
-			{ id: 'boost-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
-			{ id: 'boost-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'boost-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'boost-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 1–14 days)', price: 170 },
 		],
 	},
 	{
 		name: 'Spectrum',
 		devices: [
-			{ id: 'spectrum-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
-			{ id: 'spectrum-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
-			{ id: 'spectrum-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
-			{ id: 'spectrum-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+			{ id: 'spectrum-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'spectrum-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'spectrum-group-iphone-15-16', name: 'iPhone 15 – 16 Series Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'spectrum-group-iphone-17', name: 'iPhone 17 Series Unlock (Semi Premium, 1–14 days)', price: 315 },
 		],
 	},
 	{
 		name: 'Dish',
 		devices: [
-			{ id: 'dish-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
-			{ id: 'dish-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
-			{ id: 'dish-group-iphone-15-16', name: 'iPhone 15 – 16 Series Group Unlock (Semi Premium, 1–14 days)', price: 270 },
-			{ id: 'dish-group-iphone-17', name: 'iPhone 17 Series Group Unlock (Semi Premium, 1–14 days)', price: 315 },
+			{ id: 'dish-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 1–14 days)', price: 109 },
+			{ id: 'dish-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 1–14 days)', price: 170 },
+			{ id: 'dish-group-iphone-15-16', name: 'iPhone 15 – 16 Series Unlock (Semi Premium, 1–14 days)', price: 270 },
+			{ id: 'dish-group-iphone-17', name: 'iPhone 17 Series Unlock (Semi Premium, 1–14 days)', price: 315 },
 		],
 	},
 	{
@@ -226,8 +226,8 @@ const deviceBrands: DeviceBrand[] = [
 		],
 	},
 	{ name: 'Verizon', devices: [
-		{ id: 'verizon-group-iphone-11-13', name: 'iPhone 11 – 13 Series Group Unlock (Semi Premium, 1–14 days)', price: 109 },
-		{ id: 'verizon-group-iphone-14', name: 'iPhone 14 Series Group Unlock (Semi Premium, 1–14 days)', price: 170 },
+		{ id: 'verizon-group-iphone-11-13', name: 'iPhone 11 – 13 Series Unlock (Semi Premium, 1–14 days)', price: 109 },
+		{ id: 'verizon-group-iphone-14', name: 'iPhone 14 Series Unlock (Semi Premium, 1–14 days)', price: 170 },
 	] },
 	{ name: 'US Cellular', devices: [
 		{ id: 'us-cellular-policy-unlock', name: 'US Cellular Locked Policy - Unlock iPhone All Models up to 18 Series + iPhone Duo (Clean IMEI)', price: 79.95 },
