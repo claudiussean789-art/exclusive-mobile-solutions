@@ -1152,9 +1152,10 @@ export default function App() {
 
 	return (
 		<main className="storefront-page min-h-screen bg-slate-50 text-slate-900">
-			<div className="storefront-promo border-b border-blue-900/30 bg-[#0b1835] px-4 py-1.5 text-center text-[11px] text-blue-200 sm:text-xs">
-				<a className="hover:text-white" href="https://t.me/techfix_pro" rel="noreferrer" target="_blank">
-					<strong className="text-amber-300">🔥 SPECIAL PROMO:</strong> Fast Carrier Unlocks &amp; Digital Tool Credits | Fast FRP Service 24/7 | Get 5% Off First Order | Contact Us on Telegram!
+			<div className="storefront-promo promo-ticker-bar border-b border-blue-900/30 bg-[#0b1835] px-4 py-1.5 text-[11px] text-blue-200 sm:text-xs">
+				<a className="ticker-content hover:text-white" href="https://t.me/techfix_pro" rel="noreferrer" target="_blank">
+					<span className="ticker-item"><strong className="text-amber-300">🔥 SPECIAL PROMO:</strong> Fast Carrier Unlocks &amp; Digital Tool Credits | Fast FRP Service 24/7 | Get 5% Off First Order | Contact Us on Telegram!</span>
+					<span className="ticker-item" aria-hidden="true"><strong className="text-amber-300">🔥 SPECIAL PROMO:</strong> Fast Carrier Unlocks &amp; Digital Tool Credits | Fast FRP Service 24/7 | Get 5% Off First Order | Contact Us on Telegram!</span>
 				</a>
 			</div>
 			<header className="storefront-header sticky top-0 z-10 border-b border-blue-300/15 bg-[#050d22]/95 backdrop-blur">
